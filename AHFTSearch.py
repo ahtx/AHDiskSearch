@@ -2,28 +2,17 @@ import pickle
 from sys import argv
 import sys
 
+
 class FullTextSearch:
     def __init__(self):
         pass
 
-    def run_query(self,query):
-        s = list()
+    def run_query(self, query):
         query = query.lower()
-        #print(query)
         with open('fulltext.idx.pkl', 'rb') as handle:
             b = pickle.load(handle)
             words = query.split(" ")
-            wl = list()
-
-            for w in words:
-                wl.append(b[w].keys())
-
-            #print(wl)
-
-            s = wl[0]
+            wl = list(map(lambda x: b[x].keys(), words))
             for l in wl:
-                s = set.intersection(set(s),set(l))
-
-        return(s)
-
-
+                s = set(wl[0]).intersection(set(l))
+        return s

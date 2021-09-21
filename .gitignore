@@ -1,0 +1,11 @@
+.idea
+filesystem.db
+filesystem.db*
+fulltext.idx.pkl
+
+__pycache__
+
+venv
+env
+
+resnet50_coco_best_v2.1.0.h5
