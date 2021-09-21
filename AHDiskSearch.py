@@ -10,7 +10,7 @@ from ttkbootstrap import Style
 from IndexerConfig import IndexerConfig
 from AHFTSearch import FullTextSearch
 
-# photo_button = ttk.Radiobutton()
+photo_button = ttk.Radiobutton()
 imgobj = tk.IntVar()
 style_theme = "cosmo"
 style = Style(theme=style_theme)
@@ -164,7 +164,7 @@ exitButton = ttk.Button(search, text="Exit", width=1, command=exit, style='secon
 
 lf = ttk.Labelframe(search, text='Parameters', padding=(5, 5, 5, 5))
 photo_label = ttk.Label(lf, width=15, text="Search type: ", font=("Arial", 10)).pack(side="left")
-photo_button = ttk.Radiobutton(lf, width=15, text="Image Objects", variable=imgobj, value=1).pack(side='left')
+photo_button1 = ttk.Radiobutton(lf, width=15, text="Image Objects", variable=imgobj, value=1).pack(side='left')
 photo_button2 = ttk.Radiobutton(lf, width=12, text="Filenames", variable=imgobj, value=2).pack(side='left')
 photo_button3 = ttk.Radiobutton(lf, width=15, text="Full Text", variable=imgobj, value=3).pack(side='left')
 lf.grid(row=3, column=0, columnspan=6, sticky=tk.EW)
