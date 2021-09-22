@@ -58,23 +58,18 @@ def get_sub_string(data: list, query_append, prefix='filename = ', like_query=Fa
 
 def show(e=""):
     tq = searchInput.get()
-    sstring = ""
-    if (imgobj.get() == 1):
-        qu = f"""select files.filename, files.size, files.creation, files.modification from 
-                        files 
-                        INNER JOIN image_objects on files.filename=image_objects.filename
-                    where 
-                        files.filename = image_objects.filename AND """
-        for w in tq.split(" "):
-            sstring += f"image_objects.objects LIKE '%{w}%' AND "
-        sstring = sstring[:-4]
-    elif (imgobj.get() == 3):
+    if imgobj.get() == 1:
+        query = "SELECT files.filename, files.size, files.creation, files.modification FROM files "
+        query += "INNER JOIN image_objects on files.filename=image_objects.filename "
+        query += "WHERE files.filename = image_objects.filename AND "
+        query += get_sub_string(tq.split(" "), " AND image_objects.objects LIKE ", "image_objects.objects LIKE ", True)
+    elif imgobj.get() == 3:
         text_files = list(fts.run_query(tq))[:100]
-        sstring = get_sub_string(text_files, " OR filename = ")
-        qu = """SELECT * FROM files WHERE """
+        query = "SELECT * FROM files WHERE "
+        query += get_sub_string(text_files, " OR filename = ")
     else:
-        sstring = get_sub_string(tq.split(" "), " AND filename LIKE ", "filename LIKE ", True)
-        qu = """SELECT * FROM files WHERE """
+        query = "SELECT * FROM files WHERE "
+        query += get_sub_string(tq.split(" "), " AND filename LIKE ", "filename LIKE ", True)
 
     try:
         listBox.delete(*listBox.get_children())
@@ -82,7 +77,6 @@ def show(e=""):
         print("Listbox delete failure")
 
     try:
-        query = f"{qu}{sstring}"
         df = pd.read_sql_query(query, conn)
         for index, row in df.iterrows():
             UTC_create = datetime.datetime.utcfromtimestamp(row['creation'])
