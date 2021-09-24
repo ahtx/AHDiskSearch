@@ -1,6 +1,7 @@
 import glob
 import os
 import sqlite3
+from sys import stdin
 from time import perf_counter
 from sqlite3 import Error
 
