@@ -24,14 +24,14 @@ def create_connection():
 
 def pdf_to_text(filename):
     try:
-        pdfFileObject = open(filename, 'rb')
-        pdfReader = PyPDF2.PdfFileReader(pdfFileObject)
+        pdf_file_object = open(filename, 'rb')
+        pdf_reader = PyPDF2.PdfFileReader(pdf_file_object)
         doc_text = ""
-        for i in range(pdfReader.numPages):
-            pageObject = pdfReader.getPage(i)
-            doc_text = doc_text + pageObject.extractText()
-        pdfFileObject.close()
-        return (doc_text)
+        for i in range(pdf_reader.numPages):
+            page_object = pdf_reader.getPage(i)
+            doc_text = doc_text + page_object.extractText()
+        pdf_file_object.close()
+        return doc_text
     except:
         return ""
 
@@ -39,10 +39,10 @@ def pdf_to_text(filename):
 def docx_to_text(filename):
     try:
         doc = docx.Document(filename)
-        fullText = []
+        full_text = []
         for para in doc.paragraphs:
-            fullText.append(para.text)
-        return ('\n'.join(fullText))
+            full_text.append(para.text)
+        return '\n'.join(full_text)
     except ModuleNotFoundError as error:
         pass
     except:
@@ -55,10 +55,10 @@ def read_text(filename):
         file_size = os.path.getsize(filename)
         # print(file_size)
         ret_text = ""
-        if (file_size < 5000000):
+        if file_size < 5000000:
             f = open(filename, "r")
             all_lines = f.read().splitlines()
-            return (" ".join(all_lines))
+            return " ".join(all_lines)
         else:
             return ""
     except:
