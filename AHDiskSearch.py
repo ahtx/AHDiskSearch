@@ -6,7 +6,6 @@ from tkinter import ttk, messagebox
 import pandas as pd
 import sqlite3
 import datetime
-import sys
 from ttkbootstrap import Style
 from IndexerConfig import IndexerConfig
 from AHFTSearch import FullTextSearch
@@ -24,19 +23,17 @@ def treeview_sort_column(tv, col, reverse):
     tv.heading(col, text=col, command=lambda _col=col: treeview_sort_column(tv, _col, not reverse))
 
 
-def message(message, name="showerror"):
-    messagebox.showerror(name, message)
+def message(message, name="Error"):
+    methods = dict(Error=messagebox.showerror, Info=messagebox.showinfo, Warning=messagebox.showwarning)
+    methods[name](title=name, message=message)
 
 
 def create_connection():
-    conn = None
     try:
         db_file = os.path.join(os.getcwd(), "filesystem.db")
-        conn = sqlite3.connect(db_file)
+        return sqlite3.connect(db_file)
     except Exception as e:
         print(e)
-
-    return (conn)
 
 
 def do_popup(event):
@@ -56,8 +53,7 @@ def get_sub_string(data: list, query_append, prefix='filename = ', like_query=Fa
         return ""
 
 
-def show(e=""):
-    tq = searchInput.get()
+def get_query(tq):
     if imgobj.get() == 1:
         query = "SELECT files.filename, files.size, files.creation, files.modification FROM files "
         query += "INNER JOIN image_objects on files.filename=image_objects.filename "
@@ -70,34 +66,37 @@ def show(e=""):
     else:
         query = "SELECT * FROM files WHERE "
         query += get_sub_string(tq.split(" "), " AND filename LIKE ", "filename LIKE ", True)
+    return query
 
+
+def show(e=""):
+    tq = search_input.get()
     try:
-        listBox.delete(*listBox.get_children())
+        assert tq, "Please enter some query!"
+        query = get_query(tq)
+        list_box.delete(*list_box.get_children())
+        df = pd.read_sql_query(query, conn)
+        for index, row in df.iterrows():
+            utc_create = datetime.datetime.utcfromtimestamp(row['creation'])
+            utc_mod = datetime.datetime.utcfromtimestamp(row['modification'])
+            list_box.insert("", "end", values=(row['filename'], int(row['size']), utc_create, utc_mod))
+    except AssertionError as error:
+        message(error.args[0], "Error")
     except Exception as e:
         print("Listbox delete failure")
 
-    try:
-        df = pd.read_sql_query(query, conn)
-        for index, row in df.iterrows():
-            UTC_create = datetime.datetime.utcfromtimestamp(row['creation'])
-            UTC_mod = datetime.datetime.utcfromtimestamp(row['modification'])
-            listBox.insert("", "end", values=(row['filename'], int(row['size']), UTC_create, UTC_mod))
-    except:
-        e = sys.exc_info()[0]
-        print(f"SQL Error {e}")
-
 
 def grab_full_path():
-    curItem = listBox.focus()
-    cur_text = listBox.item(curItem)['values'][0]
+    cur_item = list_box.focus()
+    cur_text = list_box.item(cur_item)['values'][0]
     search.clipboard_clear()
     search.clipboard_append(cur_text)
     search.update()
 
 
 def grab_folder_path():
-    curItem = listBox.focus()
-    path = str(Path(listBox.item(curItem)['values'][0]).parent)
+    cur_item = list_box.focus()
+    path = str(Path(list_box.item(cur_item)['values'][0]).parent)
     search.clipboard_clear()
     search.clipboard_append(path)
     search.update()
@@ -105,16 +104,16 @@ def grab_folder_path():
 
 def double_click_open(event):
     try:
-        curItem = listBox.focus()
-        cur_text = listBox.item(curItem)['values'][0]
+        cur_item = list_box.focus()
+        cur_text = list_box.item(cur_item)['values'][0]
         os.startfile(cur_text)
     except Exception as error:
         message(message=error.args[0])
 
 
 def open_in_explorer():
-    curItem = listBox.focus()
-    path = str(Path(listBox.item(curItem)['values'][0]).parent)
+    cur_item = list_box.focus()
+    path = str(Path(list_box.item(cur_item)['values'][0]).parent)
     os.system(f"explorer {path}")
 
 
@@ -123,14 +122,15 @@ def iconfig():
 
 
 def load_file():
-    curItem = listBox.focus()
-    cur_text = listBox.item(curItem)['values'][0]
+    cur_item = list_box.focus()
+    cur_text = list_box.item(cur_item)['values'][0]
     os.startfile(cur_text)
 
 
 if __name__ == '__main__':
     photo_button = ttk.Radiobutton()
     imgobj = tk.IntVar()
+    imgobj.set(3)
     style_theme = "cosmo"
     style = Style(theme=style_theme)
 
@@ -153,21 +153,21 @@ if __name__ == '__main__':
     params = dict(width=1, text=" ", font=("Arial", 10))
     emptyLabel2 = tk.Label(search, **params).grid(row=1, columnspan=6, sticky=tk.EW)
     params['text'] = "Query: "
-    searchLabel = tk.Label(search, **params).grid(row=2, column=0, sticky=tk.EW)
-    searchInput = tk.Entry(search, width=1)
-    searchInput.grid(row=2, column=1, sticky=tk.EW, padx=(5, 0))
+    search_label = tk.Label(search, **params).grid(row=2, column=0, sticky=tk.EW)
+    search_input = tk.Entry(search, width=1)
+    search_input.grid(row=2, column=1, sticky=tk.EW, padx=(5, 0))
     params = dict(text="Search", width=1, command=show, style='primary.TButton')
-    searchButton = ttk.Button(search, **params).grid(row=2, column=2, sticky=tk.EW, padx=(10, 1))
+    search_button = ttk.Button(search, **params).grid(row=2, column=2, sticky=tk.EW, padx=(10, 1))
     params = dict(text="Config", width=1, command=iconfig, style='primary.TButton')
-    configButton = ttk.Button(search, **params).grid(row=2, column=3, sticky=tk.EW, padx=(1, 1))
+    config_button = ttk.Button(search, **params).grid(row=2, column=3, sticky=tk.EW, padx=(1, 1))
     params = dict(text="Exit", width=1, command=exit, style='secondary.TButton')
-    exitButton = ttk.Button(search, **params).grid(row=2, column=4, sticky=tk.EW, padx=(1, 1))
+    exit_button = ttk.Button(search, **params).grid(row=2, column=4, sticky=tk.EW, padx=(1, 1))
 
     lf = ttk.Labelframe(search, text='Parameters', padding=(5, 5, 5, 5))
     photo_label = ttk.Label(lf, width=15, text="Search type: ", font=("Arial", 10)).pack(side="left")
-    photo_button1 = ttk.Radiobutton(lf, width=15, text="Image Objects", variable=imgobj, value=1).pack(side='left')
-    photo_button2 = ttk.Radiobutton(lf, width=12, text="Filenames", variable=imgobj, value=2).pack(side='left')
     photo_button3 = ttk.Radiobutton(lf, width=15, text="Full Text", variable=imgobj, value=3).pack(side='left')
+    photo_button2 = ttk.Radiobutton(lf, width=12, text="Filenames", variable=imgobj, value=2).pack(side='left')
+    photo_button1 = ttk.Radiobutton(lf, width=15, text="Image Objects", variable=imgobj, value=1).pack(side='left')
     lf.grid(row=3, column=0, columnspan=6, sticky=tk.EW)
     search.bind('<Return>', show)
 
@@ -178,28 +178,28 @@ if __name__ == '__main__':
     menu.add_command(label="Open file", command=load_file)
     menu.add_command(label="Open folder", command=open_in_explorer)
 
+    style_cosomo_treeview = "cosmo.Treeview"
     # create Treeview with 3 columns
     cols = ('Filename', 'Size', 'Created', 'Modified')
-    style.configure("cosmo.Treeview", highlightthickness=0, bd=0, font=('Calibri', 8))  # Modify the font of the body
-    style.configure("cosmo.Treeview.Heading", font=('Calibri', 10))  # Modify the font of the headings
-    listBox = ttk.Treeview(search, style="cosmo.Treeview", columns=cols, show='headings', height=20)
-    vsb = ttk.Scrollbar(orient="vertical", command=listBox.yview)
+    style.configure(style_cosomo_treeview, highlightthickness=0, bd=0, font=('Calibri', 8))  # Modify the font of the body
+    style.configure(style_cosomo_treeview+".Heading", font=('Calibri', 10))  # Modify the font of the headings
+    list_box = ttk.Treeview(search, style=style_cosomo_treeview, columns=cols, show='headings', height=20)
+    vsb = ttk.Scrollbar(orient="vertical", command=list_box.yview)
     vsb.grid(row=4, column=5, sticky='ns')
 
-    listBox.configure(yscrollcommand=vsb.set)
-    # set column headings
+    list_box.configure(yscrollcommand=vsb.set)
     for col in cols:
-        # listBox.heading(col, text=col)
-        listBox.column(col, minwidth=150, width=250)
+        list_box.column(col, minwidth=150, width=250)
 
-        listBox.heading(col, text=col, command=lambda _col=col: treeview_sort_column(listBox, _col, False))
-    listBox.column('Filename', minwidth=250, width=650)
-    listBox.column('Size', minwidth=50, width=150)
-    listBox.column('Created', minwidth=100, width=100)
-    listBox.column('Modified', minwidth=100, width=100)
-    listBox.grid(row=4, column=0, columnspan=5)
+        list_box.heading(col, text=col, command=lambda _col=col: treeview_sort_column(list_box, _col, False))
+    list_box.column('Filename', minwidth=250, width=650)
+    list_box.column('Size', minwidth=50, width=150)
+    list_box.column('Created', minwidth=100, width=100)
+    list_box.column('Modified', minwidth=100, width=100)
+    list_box.grid(row=4, column=0, columnspan=5)
 
-    listBox.bind("<Button-3>", do_popup)
-    listBox.bind("<Double-1>", double_click_open)
+    list_box.bind("<Button-3>", do_popup)
+    list_box.bind("<Double-1>", double_click_open)
+    list_box.bind("<Return>", double_click_open)
 
     search.mainloop()

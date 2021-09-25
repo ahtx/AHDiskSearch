@@ -1,8 +1,7 @@
 import os
 import subprocess
 import tkinter as tk
-from tkinter import ttk, filedialog, Tk
-from ttkbootstrap import Style
+from tkinter import ttk, filedialog
 
 
 class IndexerConfig:
@@ -11,7 +10,6 @@ class IndexerConfig:
         self.master = master
         root = tk.Toplevel(master)
         self.root = root
-        # root.eval('tk::PlaceWindow . center')
 
         root.geometry("475x335")
         root.iconbitmap("ahsearch.ico")
@@ -20,65 +18,31 @@ class IndexerConfig:
 
         lf = ttk.Labelframe(root, text='Parameters', padding=(5, 15, 15, 5))
         lf.pack(side='top', fill='x')
-
-        # empty_label= tk.Label(lf,
-        #                        width=10, 
-        #                        text=" ", 
-        #                        font=("Arial",10))
-        # empty_label.grid(row=1, columnspan=3, sticky=tk.W)
-
-        folder_label = tk.Label(lf,
-                                width=10,
-                                text="Folder: ",
-                                font=("Arial", 10))
+        font_arial_10 = ("Arial", 10)
+        params = dict(width=10, text="Folder: ", font=font_arial_10)
+        folder_label = tk.Label(lf, **params)
         folder_label.grid(row=2, column=1, sticky=tk.W)
-
         folder_name = tk.Entry(lf, width=40)
         folder_name.grid(row=2, column=2, sticky=tk.W)
-
-        empty_label2 = tk.Label(lf,
-                                width=10,
-                                text=" ",
-                                font=("Arial", 10))
+        params.update({'text': ' '})
+        empty_label2 = tk.Label(lf, **params)
         empty_label2.grid(row=3, columnspan=3, sticky=tk.W)
-
         self.folder_list = tk.Listbox(lf, width=52, height=10)
         self.folder_list.grid(row=3, column=1, columnspan=3, sticky=tk.EW, pady=(5, 0), padx=(15, 5))
-
-        folder_button = ttk.Button(lf,
-                                   text="Select",
-                                   width=6,
-                                   command=self.fsel,
-                                   style='primary.TButton')
+        params = dict(text="Select", width=6, command=self.fsel, style='primary.TButton')
+        folder_button = ttk.Button(lf, **params)
         folder_button.grid(row=2, column=3, sticky=tk.W, padx=(10, 5))
-
-        del_button = ttk.Button(lf,
-                                text="Delete",
-                                width=6,
-                                command=self.remove_item,
-                                style='primary.TButton')
+        params.update({'text': 'Delete', 'command': self.remove_item})
+        del_button = ttk.Button(lf, **params)
         del_button.grid(row=4, column=1, sticky=tk.S, padx=(10, 0), pady=(10, 0))
-
-        save_button = ttk.Button(lf,
-                                 text="Save",
-                                 width=6,
-                                 command=self.save_config,
-                                 style='primary.TButton')
+        params.update({'text': 'Save', 'command': self.save_config})
+        save_button = ttk.Button(lf, **params)
         save_button.grid(row=4, column=2, sticky=tk.S, pady=(10, 0))
-
-        cancel_button = ttk.Button(lf,
-                                   text="Cancel",
-                                   width=6,
-                                   command=self.exit,
-                                   style='secondary.TButton')
+        params.update({'text': 'Cancel', 'command': self.exit})
+        cancel_button = ttk.Button(lf, **params)
         cancel_button.grid(row=4, column=3, sticky=tk.S, padx=(5, 0), pady=(10, 0))
-
-        indexer_button = ttk.Button(root,
-                                    text="Run Indexer",
-                                    width=20,
-                                    command=self.run_indexer,
-                                    style='warning.TButton')
-        # indexer_button.grid(row=5, column=1, columnspan=3, sticky=tk.S, padx=(50,50), pady=(10,0))
+        params.update({'text': 'Run Indexer', 'width': 20, 'command': self.exit, 'style': 'warning.TButton'})
+        indexer_button = ttk.Button(root, **params)
         indexer_button.pack(fill='both', pady=5, padx=15)
 
         try:
@@ -87,9 +51,7 @@ class IndexerConfig:
             pass
 
     def fsel(self):
-        answer = filedialog.askdirectory(parent=self.root,
-                                         initialdir=os.getcwd(),
-                                         title="Please select a folder:")
+        answer = filedialog.askdirectory(parent=self.root, initialdir=os.getcwd(), title="Please select a folder:")
         self.folder_list.insert("end", answer)
 
     def remove_item(self):
@@ -97,23 +59,25 @@ class IndexerConfig:
             self.folder_list.delete(i)
 
     def save_config(self):
-        f = open("ahsearch.config", "w")
+        file = open("ahsearch.config", "w")
         for i in range(self.folder_list.size()):
-            f.write(self.folder_list.get(i))
-            f.write("\n")
-        f.close()
+            file.write(self.folder_list.get(i))
+            file.write("\n")
+        file.close()
 
     def read_config(self):
-        f = open("ahsearch.config", "r")
-        for l in f.readlines():
-            l = l.strip("\n")
-            self.folder_list.insert("end", l)
-        f.close()
+        file = open("ahsearch.config", "r")
+        for line in file.readlines():
+            line = line.strip("\n")
+            self.folder_list.insert("end", line)
+        file.close()
 
     def run_indexer(self):
         console = ['cmd.exe', '/c']
-        cmd = ['python', 'AHDiskIndexer.py']
-        subprocess.Popen(console + cmd)
+        for file in ("AHDiskIndexer.py", "AHFullTextIndexer.py", "AHObjectDetector.py"):
+            print(f"Indexing {file}")
+            cmd = ['python', file]
+            subprocess.Popen(console + cmd)
 
     def exit(self):
         self.master.deiconify()
