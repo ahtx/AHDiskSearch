@@ -1,8 +1,10 @@
 import os
 import sqlite3
+from collections import namedtuple
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOGGER_TIME_FORMAT = '%b-%d-%y %H:%M:%S'
+Stats = namedtuple('Stats', ['count', 'size', 'datetime'])
 
 
 def create_connection():

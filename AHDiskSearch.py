@@ -5,7 +5,6 @@ import tkinter as tk
 from functools import reduce
 from pathlib import Path
 from tkinter import ttk, messagebox
-import pandas as pd
 import datetime
 from ttkbootstrap import Style
 from IndexerConfig import IndexerConfig
@@ -78,11 +77,12 @@ def show(e=""):
         query = get_query(tq)
         list_box.delete(*list_box.get_children())
         assert not query.lower().endswith('where '), "Data not found!"
-        df = pd.read_sql_query(query, conn)
-        for index, row in df.iterrows():
-            utc_create = datetime.datetime.utcfromtimestamp(row['creation'])
-            utc_mod = datetime.datetime.utcfromtimestamp(row['modification'])
-            list_box.insert("", "end", values=(row['filename'], int(row['size']), utc_create, utc_mod))
+        files = conn.cursor().execute(query).fetchall()
+        for index, row in enumerate(files):
+            filename, size, creation, modification = row
+            utc_create = datetime.datetime.utcfromtimestamp(creation)
+            utc_mod = datetime.datetime.utcfromtimestamp(modification)
+            list_box.insert("", "end", values=(filename, int(size), utc_create, utc_mod))
     except AssertionError as error:
         message(error.args[0], "Error")
     except Exception as error:

@@ -1,16 +1,16 @@
+import itertools
 import logging
 import os
 import pickle
 import sys
 from collections import defaultdict
 from time import perf_counter
-import pandas as pd
 import win32api
 import win32event
 import winerror
 from TextSpitter import TextSpitter
 
-from dist.shared import create_connection, BASE_DIR, LOGGER_TIME_FORMAT
+from dist.shared import create_connection, BASE_DIR, LOGGER_TIME_FORMAT, Stats
 
 log_file = os.path.join(BASE_DIR, 'dist', 'full_text_indexer.log')
 logging.basicConfig(
@@ -34,26 +34,40 @@ def dump_pickle(data):
         pickle.dump(data, tf)
 
 
+def get_pickled_files():
+    pickle_file = os.path.join(BASE_DIR, 'dist', 'fulltext.idx.pkl')
+    if not os.path.exists(pickle_file):
+        return []
+    with open(pickle_file, 'rb') as p_file:
+        result_set = pickle.load(p_file).values()
+        files = list(map(lambda x: x.keys(), result_set))
+        files = set(itertools.chain(*files))
+    return files
+
+
 def update_big_idx(filename, full_text, big_idx):
     full_text = full_text.lower()
     for word in set(full_text.split(" ")):
         if not word: continue
         word = word.strip(".,;:\"'!@#$%^&*()-+=<>?,./[]|")
-        big_idx[word][filename] = full_text.count(word)
+        word = word.replace('\n', '')
+        stats = os.stat(filename)
+        stats = Stats(*[full_text.count(word.lower()), stats.st_size, stats.st_mtime])
+        big_idx[word][filename] = stats
     return big_idx
 
 
 def start():
-    query = "SELECT filename FROM files WHERE filename LIKE '%.txt' OR filename LIKE '%.docx' "
-    query += "OR filename LIKE '%.pdf%'"
+    exclude = get_pickled_files()
+    query = "SELECT filename FROM files WHERE (filename LIKE '%.txt' OR filename LIKE '%.docx' "
+    query += "OR filename LIKE '%.pdf%') AND filename NOT IN ({})".format(','.join('?' * len(exclude)))
     big_idx = defaultdict(dict)
     try:
         conn = create_connection()
         assert conn, "DB connection failure"
-        df = pd.read_sql_query(query, conn)
-        total = df.count().filename
-        for index, row in enumerate(df.values):
-            filename = row[0]
+        filenames = set(itertools.chain.from_iterable(conn.cursor().execute(query, list(exclude)).fetchall()))
+        total = len(filenames)
+        for index, filename in enumerate(filenames):
             extension = filename.split('.')[-1]
             if os.path.isfile(filename) and extension in ("txt", "pdf", "docx"):
                 logging.info(f"Indexing {index + 1} out of {total} {filename}")
