@@ -10,6 +10,7 @@ import win32event
 import winerror
 from TextSpitter import TextSpitter
 
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from dist.shared import create_connection, BASE_DIR, LOGGER_TIME_FORMAT, Stats
 
 log_file = os.path.join(BASE_DIR, 'dist', 'full_text_indexer.log')

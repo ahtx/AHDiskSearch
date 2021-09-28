@@ -1,6 +1,6 @@
 import logging
 import os
-from sys import exit
+from sys import exit, path
 import tkinter as tk
 from functools import reduce
 from pathlib import Path
@@ -9,6 +9,8 @@ import datetime
 from ttkbootstrap import Style
 from IndexerConfig import IndexerConfig
 from AHFTSearch import FullTextSearch
+
+path.append(os.path.join(os.path.dirname(__file__), '..'))
 from dist.shared import create_connection, BASE_DIR, LOGGER_TIME_FORMAT
 
 log_file = os.path.join(BASE_DIR, 'dist', 'disk_seach.log')

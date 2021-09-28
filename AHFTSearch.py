@@ -1,7 +1,9 @@
 import itertools
 import os
 import pickle
+import sys
 
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from dist.shared import BASE_DIR
 
 

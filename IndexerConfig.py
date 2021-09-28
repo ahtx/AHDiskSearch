@@ -1,11 +1,12 @@
 import os
 import subprocess
+import sys
 import tkinter as tk
 from collections import namedtuple
 from tkinter import ttk, filedialog
 
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from dist.shared import BASE_DIR
-
 
 Indexer = namedtuple('Indexer', ['disk', 'fulltext', 'image'])
 
@@ -45,11 +46,14 @@ class IndexerConfig:
 
         indexer_label = ttk.Label(indexer_frame, width=15, text="Select Indexer: ", font=("Arial", 10, "bold"))
         indexer_label.grid(row=1, column=0, sticky=tk.EW, pady=10)
-        disk_indexer = ttk.Radiobutton(indexer_frame, text="Disk Indexer", width=12, variable=self.indexer_obj, value=self.indexer.disk)
+        disk_indexer = ttk.Radiobutton(indexer_frame, text="Disk Indexer", width=12, variable=self.indexer_obj,
+                                       value=self.indexer.disk)
         disk_indexer.grid(row=1, column=1, sticky=tk.EW)
-        fdisk_indexer = ttk.Radiobutton(indexer_frame, text="Full Disk Indexer", width=15, variable=self.indexer_obj, value=self.indexer.fulltext)
+        fdisk_indexer = ttk.Radiobutton(indexer_frame, text="Full Disk Indexer", width=15, variable=self.indexer_obj,
+                                        value=self.indexer.fulltext)
         fdisk_indexer.grid(row=1, column=2, sticky=tk.EW)
-        object_indexer = ttk.Radiobutton(indexer_frame, text="Objects Indexer", width=15, variable=self.indexer_obj,  value=self.indexer.image)
+        object_indexer = ttk.Radiobutton(indexer_frame, text="Objects Indexer", width=15, variable=self.indexer_obj,
+                                         value=self.indexer.image)
         object_indexer.grid(row=1, column=3, sticky=tk.EW)
 
         lf = ttk.Frame(root)
@@ -113,7 +117,6 @@ class IndexerConfig:
             target = os.path.join(BASE_DIR, 'dist', executeable[self.indexer_obj.get()][1])
             cmd = ['python', f"{target}"]
             subprocess.Popen(console + cmd)
-
 
     def exit(self):
         self.master.deiconify()

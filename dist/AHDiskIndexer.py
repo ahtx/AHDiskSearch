@@ -8,7 +8,7 @@ from sqlite3 import Error
 import win32api
 import win32event
 import winerror
-
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from dist.shared import BASE_DIR, create_connection, LOGGER_TIME_FORMAT
 
 log_file = os.path.join(BASE_DIR, 'dist', 'disk_indexer.log')
