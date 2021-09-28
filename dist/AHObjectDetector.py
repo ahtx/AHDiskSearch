@@ -1,20 +1,38 @@
+import logging
 import sys
 import os
-from sqlite3 import Error
 from time import perf_counter
 
 import pandas as pd
+import win32api
+import win32event
+import winerror
 from imageai.Detection import ObjectDetection
 
-from dist.shared import create_connection, BASE_DIR
+from dist.shared import create_connection, BASE_DIR, LOGGER_TIME_FORMAT
+
+log_file = os.path.join(BASE_DIR, 'dist', 'object_indexer.log')
+logging.basicConfig(
+    filename=log_file,
+    filemode='w',
+    format='%(asctime)s-%(levelname)s - %(message)s',
+    datefmt=LOGGER_TIME_FORMAT
+)
+
+# Disallowing Multiple Instance
+mutex = win32event.CreateMutex(None, 1, 'mutex_AHObjectDetector')
+if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
+    mutex = None
+    logging.info("AHObjectDetector already running")
+    sys.exit(0)
 
 
 def create_table(conn):
     query = "CREATE TABLE image_objects (filename TEXT PRIMARY KEY, objects TEXT, probabilities TEXT);"
     try:
         conn.cursor().execute(query)
-    except Error as e:
-        print(f"Warning: {e}")
+    except Exception as error:
+        logging.warning(error)
 
 
 def entry_exists(conn, v1):
@@ -40,7 +58,7 @@ def start(conn):
         df = pd.read_sql_query(query, conn)
         for index, row in enumerate(df.values):
             filename = row[0]
-            print(f"{index + 1} Processing {filename}")
+            logging.info(f"{index + 1} Processing {filename}")
             if not entry_exists(conn, filename):
                 try:
                     xyz, detections = detector.detectObjectsFromImage(input_image=filename, output_type="array")
@@ -51,11 +69,11 @@ def start(conn):
                         probabilities.append(eachObject["percentage_probability"])
                     insert_entry(conn, filename, str(objects), str(probabilities))
                 except:
-                    print(f"Exception occurred with {filename}")
+                    logging.warning(f"Exception occurred with {filename}")
             else:
-                print(f"{filename} has already been catalogued")
-    except:
-        print("SQL Error")
+                logging.info(f"{filename} has already been catalogued")
+    except Exception as error:
+        logging.error(error)
 
 
 if __name__ == '__main__':
@@ -66,13 +84,13 @@ if __name__ == '__main__':
         model_file = os.path.join(BASE_DIR, 'dist', 'resnet50_coco_best_v2.1.0.h5')
         assert os.path.exists(model_file), 'resnet50_coco_best_v2.1.0.h5 is required'
     except Exception as error:
-        print("Error: ", str(error))
+        logging.error(error)
         sys.exit()
-    print("Starting object recognition process...")
+    logging.info("Starting object recognition process...")
     t1_start = perf_counter()
     detector = ObjectDetection()
     detector.setModelTypeAsRetinaNet()
     detector.setModelPath(model_file)
     detector.loadModel()
     t1_stop = perf_counter()
-    print("Time elapsed {} seconds".format(t1_stop - t1_start))
+    logging.info("Time elapsed {} seconds".format(t1_stop - t1_start))

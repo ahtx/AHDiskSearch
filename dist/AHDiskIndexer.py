@@ -1,4 +1,5 @@
 import glob
+import logging
 import os
 import sys
 from time import perf_counter
@@ -8,12 +9,21 @@ import win32api
 import win32event
 import winerror
 
-from dist.shared import BASE_DIR, create_connection
+from dist.shared import BASE_DIR, create_connection, LOGGER_TIME_FORMAT
+
+log_file = os.path.join(BASE_DIR, 'dist', 'disk_indexer.log')
+logging.basicConfig(
+    filename=log_file,
+    filemode='w',
+    format='%(asctime)s-%(levelname)s - %(message)s',
+    datefmt=LOGGER_TIME_FORMAT
+)
 
 # Disallowing Multiple Instance
 mutex = win32event.CreateMutex(None, 1, 'mutex_AHDiskIndexer')
 if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
     mutex = None
+    logging.info("AHDiskIndexer already running.")
     sys.exit(0)
 
 
@@ -23,7 +33,7 @@ def create_table(conn):
         c = conn.cursor()
         c.execute(query)
     except Error as e:
-        print(f"Warning: {e}")
+        logging.warning(e)
 
 
 def read_path_config():
@@ -45,7 +55,7 @@ def insert_entry(conn, v1, v2, v3, v4):
 
 
 def save_paths(path, conn):
-    print(f"Now indexing {path}")
+    logging.info(f"Now indexing {path}")
     for filename in glob.iglob(os.path.join(glob.escape(path), "**/*.*"), recursive=True):
         if os.path.isdir(filename):
             continue
@@ -58,14 +68,14 @@ def save_paths(path, conn):
             # findex.write(f"{filename},{filesize},{filecreation},{filemod}\n")
             try:
                 insert_entry(conn, filename, filesize, filecreation, filemod)
-            except:
-                print(f"Warning: couldn't add entry for {filename}")
-        except:
-            print("Warning: issue w filename")
+            except Exception as error:
+                logging.warning(error)
+        except Exception as error:
+            logging.warning(error)
 
 
 def start():
-    print("Starting indexing process...")
+    logging.info("Starting indexing process...")
     try:
         paths = read_path_config()
         conn = create_connection()
@@ -75,11 +85,11 @@ def start():
             path = path.strip("\n")
             save_paths(path, conn)
     except Exception as error:
-        print('Error =>> ', error.args[0])
+        logging.warning(error)
 
 
 if __name__ == '__main__':
     t1_start = perf_counter()
     start()
     t1_stop = perf_counter()
-    print("Time elapsed {} seconds".format(t1_stop - t1_start))
+    logging.info("Time elapsed {} seconds".format(t1_stop - t1_start))

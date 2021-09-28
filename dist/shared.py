@@ -1,8 +1,8 @@
 import os
 import sqlite3
 
-
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+LOGGER_TIME_FORMAT = '%b-%d-%y %H:%M:%S'
 
 
 def create_connection():

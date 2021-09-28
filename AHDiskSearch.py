@@ -1,3 +1,4 @@
+import logging
 import os
 from sys import exit
 import tkinter as tk
@@ -9,7 +10,15 @@ import datetime
 from ttkbootstrap import Style
 from IndexerConfig import IndexerConfig
 from AHFTSearch import FullTextSearch
-from dist.shared import create_connection, BASE_DIR
+from dist.shared import create_connection, BASE_DIR, LOGGER_TIME_FORMAT
+
+log_file = os.path.join(BASE_DIR, 'dist', 'disk_seach.log')
+logging.basicConfig(
+    filename=log_file,
+    filemode='w',
+    format='%(asctime)s-%(levelname)s - %(message)s',
+    datefmt=LOGGER_TIME_FORMAT
+)
 
 
 def treeview_sort_column(tv, col, reverse):
@@ -77,7 +86,7 @@ def show(e=""):
     except AssertionError as error:
         message(error.args[0], "Error")
     except Exception as error:
-        print(f"Listbox delete failure =>> ", error.args[0])
+        logging.error(error)
 
 
 def grab_full_path():

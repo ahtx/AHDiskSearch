@@ -1,3 +1,4 @@
+import logging
 import os
 import pickle
 import sys
@@ -9,12 +10,21 @@ import win32event
 import winerror
 from TextSpitter import TextSpitter
 
-from dist.shared import create_connection, BASE_DIR
+from dist.shared import create_connection, BASE_DIR, LOGGER_TIME_FORMAT
+
+log_file = os.path.join(BASE_DIR, 'dist', 'full_text_indexer.log')
+logging.basicConfig(
+    filename=log_file,
+    filemode='w',
+    format='%(asctime)s-%(levelname)s - %(message)s',
+    datefmt=LOGGER_TIME_FORMAT
+)
 
 # Disallowing Multiple Instance
 mutex = win32event.CreateMutex(None, 1, 'mutex_AHFullTextIndexer')
 if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
     mutex = None
+    logging.info("AHFullTextIndexer already running")
     sys.exit(0)
 
 
@@ -46,20 +56,21 @@ def start():
             filename = row[0]
             extension = filename.split('.')[-1]
             if os.path.isfile(filename) and extension in ("txt", "pdf", "docx"):
-                print(f"Indexing {index + 1} out of {total} {filename}")
+                logging.info(f"Indexing {index + 1} out of {total} {filename}")
                 try:
                     full_text = TextSpitter(filename)
                 except Exception as error:
+                    logging.error(error)
                     continue
                 big_idx = update_big_idx(filename, full_text, big_idx)
         dump_pickle(big_idx)
     except Exception as error:
-        print("Error =>> ", error.args[0])
+        logging.error(error)
 
 
 if __name__ == '__main__':
-    print("Starting full text indexing process...")
+    logging.info("Starting full text indexing process...")
     t1_start = perf_counter()
     start()
     t1_stop = perf_counter()
-    print("Time elapsed {} seconds".format(t1_stop - t1_start))
+    logging.info("Time elapsed {} seconds".format(t1_stop - t1_start))
