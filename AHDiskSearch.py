@@ -1,14 +1,15 @@
 import os
+from sys import exit
 import tkinter as tk
 from functools import reduce
 from pathlib import Path
 from tkinter import ttk, messagebox
 import pandas as pd
-import sqlite3
 import datetime
 from ttkbootstrap import Style
 from IndexerConfig import IndexerConfig
 from AHFTSearch import FullTextSearch
+from dist.shared import create_connection, BASE_DIR
 
 
 def treeview_sort_column(tv, col, reverse):
@@ -28,14 +29,6 @@ def message(message, name="Error"):
     methods[name](title=name, message=message)
 
 
-def create_connection():
-    try:
-        db_file = os.path.join(os.getcwd(), "filesystem.db")
-        return sqlite3.connect(db_file)
-    except Exception as e:
-        print(e)
-
-
 def do_popup(event):
     try:
         menu.tk_popup(event.x_root, event.y_root)
@@ -49,7 +42,7 @@ def get_sub_string(data: list, query_append, prefix='filename = ', like_query=Fa
         result = reduce(lambda x, y: x.replace("'", "''") + f"{query_append}" + y.replace("'", "''"), data)
         return prefix + f'{query_append}'.join(
             f"'%{word}%'" if like_query else f"'{word}'" for word in result.split(f'{query_append}'))
-    except:
+    except Exception as error:
         return ""
 
 
@@ -70,11 +63,12 @@ def get_query(tq):
 
 
 def show(e=""):
-    tq = search_input.get()
+    tq = search_value.get()
     try:
         assert tq, "Please enter some query!"
         query = get_query(tq)
         list_box.delete(*list_box.get_children())
+        assert not query.lower().endswith('where '), "Data not found!"
         df = pd.read_sql_query(query, conn)
         for index, row in df.iterrows():
             utc_create = datetime.datetime.utcfromtimestamp(row['creation'])
@@ -82,8 +76,8 @@ def show(e=""):
             list_box.insert("", "end", values=(row['filename'], int(row['size']), utc_create, utc_mod))
     except AssertionError as error:
         message(error.args[0], "Error")
-    except Exception as e:
-        print("Listbox delete failure")
+    except Exception as error:
+        print(f"Listbox delete failure =>> ", error.args[0])
 
 
 def grab_full_path():
@@ -130,7 +124,7 @@ def load_file():
 if __name__ == '__main__':
     photo_button = ttk.Radiobutton()
     imgobj = tk.IntVar()
-    imgobj.set(3)
+    imgobj.set(2)
     style_theme = "cosmo"
     style = Style(theme=style_theme)
 
@@ -141,7 +135,8 @@ if __name__ == '__main__':
 
     search.geometry("1025x510")
     # search.eval('tk::PlaceWindow . center')
-    search.iconbitmap("ahsearch.ico")
+    icon_file = os.path.join(BASE_DIR, 'dist', 'ahsearch.ico')
+    search.iconbitmap(icon_file)
     search.resizable(False, False)
     search.title("AH Desktop Search")
 
@@ -151,11 +146,14 @@ if __name__ == '__main__':
     search.columnconfigure(3, weight=1)
     search.columnconfigure(4, weight=1)
     params = dict(width=1, text=" ", font=("Arial", 10))
-    emptyLabel2 = tk.Label(search, **params).grid(row=1, columnspan=6, sticky=tk.EW)
+    # emptyLabel2 = tk.Label(search, **params).grid(row=1, columnspan=6, sticky=tk.EW)
     params['text'] = "Query: "
+    params['font'] = ("Arial", 10, "bold")
     search_label = tk.Label(search, **params).grid(row=2, column=0, sticky=tk.EW)
-    search_input = tk.Entry(search, width=1)
-    search_input.grid(row=2, column=1, sticky=tk.EW, padx=(5, 0))
+    search_value = tk.StringVar()
+    search_input = tk.Entry(search, width=1, textvariable=search_value)
+    search_input.grid(row=2, column=1, sticky=tk.EW, ipady=4, padx=(5, 0))
+    search_input.focus()
     params = dict(text="Search", width=1, command=show, style='primary.TButton')
     search_button = ttk.Button(search, **params).grid(row=2, column=2, sticky=tk.EW, padx=(10, 1))
     params = dict(text="Config", width=1, command=iconfig, style='primary.TButton')
@@ -164,11 +162,11 @@ if __name__ == '__main__':
     exit_button = ttk.Button(search, **params).grid(row=2, column=4, sticky=tk.EW, padx=(1, 1))
 
     lf = ttk.Labelframe(search, text='Parameters', padding=(5, 5, 5, 5))
-    photo_label = ttk.Label(lf, width=15, text="Search type: ", font=("Arial", 10)).pack(side="left")
-    photo_button3 = ttk.Radiobutton(lf, width=15, text="Full Text", variable=imgobj, value=3).pack(side='left')
-    photo_button2 = ttk.Radiobutton(lf, width=12, text="Filenames", variable=imgobj, value=2).pack(side='left')
-    photo_button1 = ttk.Radiobutton(lf, width=15, text="Image Objects", variable=imgobj, value=1).pack(side='left')
     lf.grid(row=3, column=0, columnspan=6, sticky=tk.EW)
+    photo_label = ttk.Label(lf, width=15, text="Search type: ", font=("Arial", 10, "bold")).pack(side="left")
+    photo_button2 = ttk.Radiobutton(lf, width=12, text="Filenames", variable=imgobj, value=2).pack(side='left')
+    photo_button3 = ttk.Radiobutton(lf, width=15, text="Full Text", variable=imgobj, value=3).pack(side='left')
+    photo_button1 = ttk.Radiobutton(lf, width=15, text="Image Objects", variable=imgobj, value=1).pack(side='left')
     search.bind('<Return>', show)
 
     menu = tk.Menu(search, tearoff=0)
@@ -181,8 +179,9 @@ if __name__ == '__main__':
     style_cosomo_treeview = "cosmo.Treeview"
     # create Treeview with 3 columns
     cols = ('Filename', 'Size', 'Created', 'Modified')
-    style.configure(style_cosomo_treeview, highlightthickness=0, bd=0, font=('Calibri', 8))  # Modify the font of the body
-    style.configure(style_cosomo_treeview+".Heading", font=('Calibri', 10))  # Modify the font of the headings
+    style.configure(style_cosomo_treeview, highlightthickness=0, bd=0,
+                    font=('Calibri', 8))  # Modify the font of the body
+    style.configure(style_cosomo_treeview + ".Heading", font=('Calibri', 10))  # Modify the font of the headings
     list_box = ttk.Treeview(search, style=style_cosomo_treeview, columns=cols, show='headings', height=20)
     vsb = ttk.Scrollbar(orient="vertical", command=list_box.yview)
     vsb.grid(row=4, column=5, sticky='ns')

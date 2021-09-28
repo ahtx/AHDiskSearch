@@ -1,6 +1,7 @@
+import os
 import pickle
-from sys import argv
-import sys
+
+from dist.shared import BASE_DIR
 
 
 class FullTextSearch:
@@ -9,10 +10,11 @@ class FullTextSearch:
 
     def run_query(self, query):
         query = query.lower()
-        with open('fulltext.idx.pkl', 'rb') as handle:
+        pickle_file = os.path.join(BASE_DIR, 'dist', 'fulltext.idx.pkl')
+        with open(pickle_file, 'rb') as handle:
             b = pickle.load(handle)
             words = query.split(" ")
-            wl = list(map(lambda x: b[x].keys(), words))
-            for l in wl:
-                s = set(wl[0]).intersection(set(l))
-        return s
+            word_list = list(map(lambda x: b[x].keys(), words))
+            for word in word_list:
+                result = set(word_list[0]).intersection(set(word))
+        return result
