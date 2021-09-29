@@ -13,7 +13,7 @@ from AHFTSearch import FullTextSearch
 path.append(os.path.join(os.path.dirname(__file__), '..'))
 from dist.shared import create_connection, BASE_DIR, LOGGER_TIME_FORMAT
 
-log_file = os.path.join(BASE_DIR, 'dist', 'disk_seach.log')
+log_file = os.path.join(BASE_DIR, 'dist', 'disk_search.log')
 logging.basicConfig(
     filename=log_file,
     filemode='w',
