@@ -21,13 +21,19 @@ if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
 
 
 def dump_pickle(data):
-    pickle_file = os.path.join(BASE_DIR, 'dist', 'fulltext.idx.pkl')
-    with open(pickle_file, "wb") as tf:
+    with open(pickle_file, "+wb") as tf:
         pickle.dump(data, tf)
 
 
+def get_existing_or_default():
+    if not os.path.exists(pickle_file):
+        return defaultdict(dict)
+    with open(pickle_file, 'rb') as p_file:
+        result_set = pickle.load(p_file)
+    return result_set
+
+
 def get_pickled_files():
-    pickle_file = os.path.join(BASE_DIR, 'dist', 'fulltext.idx.pkl')
     if not os.path.exists(pickle_file):
         return []
     with open(pickle_file, 'rb') as p_file:
@@ -53,7 +59,7 @@ def start():
     exclude = get_pickled_files()
     query = "SELECT filename FROM files WHERE (filename LIKE '%.txt' OR filename LIKE '%.docx' "
     query += "OR filename LIKE '%.pdf%') AND filename NOT IN ({})".format(','.join('?' * len(exclude)))
-    big_idx = defaultdict(dict)
+    big_idx = get_existing_or_default()
     try:
         conn = create_connection()
         assert conn, "Index database connection failure"
@@ -76,6 +82,7 @@ def start():
 
 if __name__ == '__main__':
     LOGGER.warning("Starting full text indexing process...")
+    pickle_file = os.path.join(BASE_DIR, 'dist', 'fulltext.idx.pkl')
     t1_start = perf_counter()
     start()
     t1_stop = perf_counter()
