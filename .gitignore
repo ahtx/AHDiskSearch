@@ -1,11 +1,18 @@
 .idea
+*.config
+*.log
+__pycache__
 filesystem.db
 filesystem.db*
 fulltext.idx.pkl
-
-__pycache__
+resnet50_coco_best_v2.1.0.h5
 
 venv
 env
-
-resnet50_coco_best_v2.1.0.h5
+/dist/*.db
+/dist/*.log
+/dist/*.config
+/dist/ahsearch.config
+/dist/resnet50_coco_best_v2.1.0.h5
+/ttkbootstrap/
+/output/

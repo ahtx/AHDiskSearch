@@ -1,5 +1,4 @@
 import itertools
-import logging
 import os
 import pickle
 import sys
@@ -11,21 +10,13 @@ import winerror
 from TextSpitter import TextSpitter
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from dist.shared import create_connection, BASE_DIR, LOGGER_TIME_FORMAT, Stats
-
-log_file = os.path.join(BASE_DIR, 'dist', 'full_text_indexer.log')
-logging.basicConfig(
-    filename=log_file,
-    filemode='w',
-    format='%(asctime)s-%(levelname)s - %(message)s',
-    datefmt=LOGGER_TIME_FORMAT
-)
+from dist.shared import create_connection, BASE_DIR, LOGGER, Stats
 
 # Disallowing Multiple Instance
 mutex = win32event.CreateMutex(None, 1, 'mutex_AHFullTextIndexer')
 if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
     mutex = None
-    logging.info("AHFullTextIndexer is already running")
+    LOGGER.warning("AHFullTextIndexer is already running")
     sys.exit(0)
 
 
@@ -71,21 +62,21 @@ def start():
         for index, filename in enumerate(filenames):
             extension = filename.split('.')[-1]
             if os.path.isfile(filename) and extension in ("txt", "pdf", "docx"):
-                logging.info(f"Indexing {index + 1} out of {total} {filename}")
+                LOGGER.warning(f"Indexing {filename}: {index + 1} out of {total}")
                 try:
                     full_text = TextSpitter(filename)
-                except Exception as error:
-                    logging.error(error)
+                except Exception as err:
+                    LOGGER.warning(err)
                     continue
                 big_idx = update_big_idx(filename, full_text, big_idx)
         dump_pickle(big_idx)
-    except Exception as error:
-        logging.error(error)
+    except Exception as err:
+        LOGGER.error(err)
 
 
 if __name__ == '__main__':
-    logging.info("Starting full text indexing process...")
+    LOGGER.warning("Starting full text indexing process...")
     t1_start = perf_counter()
     start()
     t1_stop = perf_counter()
-    logging.info("Time elapsed {} seconds".format(t1_stop - t1_start))
+    LOGGER.warning("Time elapsed {} seconds".format(t1_stop - t1_start))

@@ -1,4 +1,3 @@
-import logging
 import os
 from sys import exit, path
 import tkinter as tk
@@ -11,15 +10,7 @@ from IndexerConfig import IndexerConfig
 from AHFTSearch import FullTextSearch
 
 path.append(os.path.join(os.path.dirname(__file__), '..'))
-from dist.shared import create_connection, BASE_DIR, LOGGER_TIME_FORMAT
-
-log_file = os.path.join(BASE_DIR, 'dist', 'disk_search.log')
-logging.basicConfig(
-    filename=log_file,
-    filemode='w',
-    format='%(asctime)s-%(levelname)s - %(message)s',
-    datefmt=LOGGER_TIME_FORMAT
-)
+from dist.shared import create_connection, BASE_DIR, LOGGER
 
 
 def treeview_sort_column(tv, col, reverse):
@@ -53,6 +44,7 @@ def get_sub_string(data: list, query_append, prefix='filename = ', like_query=Fa
         return prefix + f'{query_append}'.join(
             f"'%{word}%'" if like_query else f"'{word}'" for word in result.split(f'{query_append}'))
     except Exception as error:
+        LOGGER.warning(error)
         return ""
 
 
@@ -87,8 +79,8 @@ def show(e=""):
             list_box.insert("", "end", values=(filename, int(size), utc_create, utc_mod))
     except AssertionError as error:
         message(error.args[0], "Error")
-    except Exception as error:
-        logging.error(error)
+    except Exception as err:
+        LOGGER.error(err)
 
 
 def grab_full_path():
@@ -101,9 +93,9 @@ def grab_full_path():
 
 def grab_folder_path():
     cur_item = list_box.focus()
-    path = str(Path(list_box.item(cur_item)['values'][0]).parent)
+    folder_path = str(Path(list_box.item(cur_item)['values'][0]).parent)
     search.clipboard_clear()
-    search.clipboard_append(path)
+    search.clipboard_append(folder_path)
     search.update()
 
 
@@ -118,8 +110,8 @@ def double_click_open(event):
 
 def open_in_explorer():
     cur_item = list_box.focus()
-    path = str(Path(list_box.item(cur_item)['values'][0]).parent)
-    os.system(f"explorer {path}")
+    folder_path = str(Path(list_box.item(cur_item)['values'][0]).parent)
+    os.system(f"explorer {folder_path}")
 
 
 def iconfig():
