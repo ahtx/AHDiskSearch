@@ -23,7 +23,7 @@ logging.basicConfig(
 mutex = win32event.CreateMutex(None, 1, 'mutex_AHDiskIndexer')
 if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
     mutex = None
-    logging.info("AHDiskIndexer already running.")
+    logging.info("AHDiskIndexer is already running.")
     sys.exit(0)
 
 
@@ -79,7 +79,7 @@ def start():
     try:
         paths = read_path_config()
         conn = create_connection()
-        assert conn, 'No database'
+        assert conn, 'No index database found'
         create_table(conn)
         for path in paths:
             path = path.strip("\n")

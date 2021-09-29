@@ -24,7 +24,7 @@ class IndexerConfig:
         root.resizable(False, False)
         root.title("Indexer Configuration")
 
-        self.indexer = Indexer(*['Disk Indexer', 'Full Text Indexer', 'Object Detector'])
+        self.indexer = Indexer(*['File Indexer', 'Full Text Indexer', 'Image Recognition Indexer'])
 
         self.indexer_obj = tk.StringVar()
         self.indexer_obj.set(self.indexer.disk)
@@ -46,13 +46,13 @@ class IndexerConfig:
 
         indexer_label = ttk.Label(indexer_frame, width=15, text="Select Indexer: ", font=("Arial", 10, "bold"))
         indexer_label.grid(row=1, column=0, sticky=tk.EW, pady=10)
-        disk_indexer = ttk.Radiobutton(indexer_frame, text="Disk Indexer", width=12, variable=self.indexer_obj,
+        disk_indexer = ttk.Radiobutton(indexer_frame, text="File Indexer", width=12, variable=self.indexer_obj,
                                        value=self.indexer.disk)
         disk_indexer.grid(row=1, column=1, sticky=tk.EW)
-        fdisk_indexer = ttk.Radiobutton(indexer_frame, text="Full Disk Indexer", width=15, variable=self.indexer_obj,
+        fdisk_indexer = ttk.Radiobutton(indexer_frame, text="Full Text Indexer", width=15, variable=self.indexer_obj,
                                         value=self.indexer.fulltext)
         fdisk_indexer.grid(row=1, column=2, sticky=tk.EW)
-        object_indexer = ttk.Radiobutton(indexer_frame, text="Objects Indexer", width=15, variable=self.indexer_obj,
+        object_indexer = ttk.Radiobutton(indexer_frame, text="Image Recognition Indexer", width=15, variable=self.indexer_obj,
                                          value=self.indexer.image)
         object_indexer.grid(row=1, column=3, sticky=tk.EW)
 
@@ -104,17 +104,17 @@ class IndexerConfig:
         file.close()
 
     def run_indexer(self):
-        executeable = {
-            'Disk Indexer': ('AHDiskIndexer.exe', 'AHDiskIndexer.py'),
+        executable = {
+            'File Indexer': ('AHDiskIndexer.exe', 'AHDiskIndexer.py'),
             'Full Text Indexer': ('AHFullTextIndexer.exe', 'AHFullTextIndexer.py'),
-            'Object Detector': ('AHObjectDetector.exe', 'AHObjectDetector.py')
+            'Image Recognition Indexer': ('AHObjectDetector.exe', 'AHObjectDetector.py')
         }
-        target = os.path.join(BASE_DIR, 'dist', executeable[self.indexer_obj.get()][0])
+        target = os.path.join(BASE_DIR, 'dist', executable[self.indexer_obj.get()][0])
         if os.path.exists(target):
             subprocess.Popen(f"{target}")
         else:
             console = ['cmd.exe', '/c']
-            target = os.path.join(BASE_DIR, 'dist', executeable[self.indexer_obj.get()][1])
+            target = os.path.join(BASE_DIR, 'dist', executable[self.indexer_obj.get()][1])
             cmd = ['python', f"{target}"]
             subprocess.Popen(console + cmd)
 

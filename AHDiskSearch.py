@@ -75,7 +75,7 @@ def get_query(tq):
 def show(e=""):
     tq = search_value.get()
     try:
-        assert tq, "Please enter some query!"
+        assert tq, "Please enter a query!"
         query = get_query(tq)
         list_box.delete(*list_box.get_children())
         assert not query.lower().endswith('where '), "Data not found!"
@@ -156,6 +156,7 @@ if __name__ == '__main__':
     search.columnconfigure(2, weight=1)
     search.columnconfigure(3, weight=1)
     search.columnconfigure(4, weight=1)
+
     params = dict(width=1, text=" ", font=("Arial", 10))
     # emptyLabel2 = tk.Label(search, **params).grid(row=1, columnspan=6, sticky=tk.EW)
     params['text'] = "Query: "
@@ -165,6 +166,7 @@ if __name__ == '__main__':
     search_input = tk.Entry(search, width=1, textvariable=search_value)
     search_input.grid(row=2, column=1, sticky=tk.EW, ipady=4, padx=(5, 0))
     search_input.focus()
+    
     params = dict(text="Search", width=1, command=show, style='primary.TButton')
     search_button = ttk.Button(search, **params).grid(row=2, column=2, sticky=tk.EW, padx=(10, 1))
     params = dict(text="Config", width=1, command=iconfig, style='primary.TButton')
@@ -198,10 +200,11 @@ if __name__ == '__main__':
     vsb.grid(row=4, column=5, sticky='ns')
 
     list_box.configure(yscrollcommand=vsb.set)
+
     for col in cols:
         list_box.column(col, minwidth=150, width=250)
-
         list_box.heading(col, text=col, command=lambda _col=col: treeview_sort_column(list_box, _col, False))
+
     list_box.column('Filename', minwidth=250, width=650)
     list_box.column('Size', minwidth=50, width=150)
     list_box.column('Created', minwidth=100, width=100)

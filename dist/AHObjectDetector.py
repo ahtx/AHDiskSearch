@@ -24,7 +24,7 @@ logging.basicConfig(
 mutex = win32event.CreateMutex(None, 1, 'mutex_AHObjectDetector')
 if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
     mutex = None
-    logging.info("AHObjectDetector already running")
+    logging.info("AHObjectDetector is already running")
     sys.exit(0)
 
 

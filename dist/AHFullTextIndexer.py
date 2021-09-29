@@ -25,7 +25,7 @@ logging.basicConfig(
 mutex = win32event.CreateMutex(None, 1, 'mutex_AHFullTextIndexer')
 if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
     mutex = None
-    logging.info("AHFullTextIndexer already running")
+    logging.info("AHFullTextIndexer is already running")
     sys.exit(0)
 
 
@@ -65,7 +65,7 @@ def start():
     big_idx = defaultdict(dict)
     try:
         conn = create_connection()
-        assert conn, "DB connection failure"
+        assert conn, "Index database connection failure"
         filenames = set(itertools.chain.from_iterable(conn.cursor().execute(query, list(exclude)).fetchall()))
         total = len(filenames)
         for index, filename in enumerate(filenames):
