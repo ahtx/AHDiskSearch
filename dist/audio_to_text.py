@@ -13,6 +13,7 @@ from pydub import AudioSegment
 import speech_recognition as sr
 from pydub.silence import split_on_silence
 
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from dist.shared import BASE_DIR, LOGGER, create_connection
 
 # Disallowing Multiple Instance
