@@ -16,13 +16,13 @@ class IndexerConfig:
 
         self.master = master
         root = tk.Toplevel(master)
-        self.root = root
-        self.config_file = os.path.join(BASE_DIR, 'dist', 'ahsearch.config')
-        root.geometry("500x390")
+        root.title("Indexer Configuration")
+        root.resizable(False, False)
         icon_file = os.path.join(BASE_DIR, 'dist', 'ahsearch.ico')
         root.iconbitmap(icon_file)
-        root.resizable(False, False)
-        root.title("Indexer Configuration")
+        root.geometry("500x390")
+        self.root = root
+        self.config_file = os.path.join(BASE_DIR, 'dist', 'ahsearch.config')
 
         self.indexer = Indexer(*['File Indexer', 'Full Text Indexer', 'Image Recognition Indexer'])
 
@@ -46,13 +46,13 @@ class IndexerConfig:
 
         indexer_label = ttk.Label(indexer_frame, width=15, text="Select Indexer: ", font=("Arial", 10, "bold"))
         indexer_label.grid(row=1, column=0, sticky=tk.EW, pady=10)
-        disk_indexer = ttk.Radiobutton(indexer_frame, text="File Indexer", width=12, variable=self.indexer_obj,
+        disk_indexer = ttk.Radiobutton(indexer_frame, text="File Indexer", width=10, variable=self.indexer_obj,
                                        value=self.indexer.disk)
         disk_indexer.grid(row=1, column=1, sticky=tk.EW)
         fdisk_indexer = ttk.Radiobutton(indexer_frame, text="Full Text Indexer", width=15, variable=self.indexer_obj,
                                         value=self.indexer.fulltext)
         fdisk_indexer.grid(row=1, column=2, sticky=tk.EW)
-        object_indexer = ttk.Radiobutton(indexer_frame, text="Image Recognition Indexer", width=15, variable=self.indexer_obj,
+        object_indexer = ttk.Radiobutton(indexer_frame, text="Image Recognition Indexer", width=17, variable=self.indexer_obj,
                                          value=self.indexer.image)
         object_indexer.grid(row=1, column=3, sticky=tk.EW)
 
