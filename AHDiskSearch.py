@@ -54,6 +54,11 @@ def get_query(tq):
         query += "INNER JOIN image_objects on files.filename=image_objects.filename "
         query += "WHERE files.filename = image_objects.filename AND "
         query += get_sub_string(tq.split(" "), " AND image_objects.objects LIKE ", "image_objects.objects LIKE ", True)
+    elif imgobj.get() == 4:
+        query = "SELECT files.filename, files.size, files.creation, files.modification FROM files "
+        query += "INNER JOIN voices on files.filename=voices.filename "
+        query += "WHERE files.filename = voices.filename AND "
+        query += get_sub_string(tq.split(" "), " AND voices.words LIKE ", "voices.words LIKE ", True)
     elif imgobj.get() == 3:
         text_files = list(fts.run_query(tq))[:100]
         query = "SELECT * FROM files WHERE "
@@ -172,6 +177,7 @@ if __name__ == '__main__':
     photo_button2 = ttk.Radiobutton(lf, width=12, text="Filenames", variable=imgobj, value=2).pack(side='left')
     photo_button3 = ttk.Radiobutton(lf, width=15, text="Full Text", variable=imgobj, value=3).pack(side='left')
     photo_button1 = ttk.Radiobutton(lf, width=15, text="Image Objects", variable=imgobj, value=1).pack(side='left')
+    photo_button4 = ttk.Radiobutton(lf, width=15, text="Audio/Video to Text", variable=imgobj, value=4).pack(side='left')
     search.bind('<Return>', show)
 
     menu = tk.Menu(search, tearoff=0)

@@ -4,7 +4,6 @@ import os
 from sqlite3 import OperationalError, IntegrityError
 from time import perf_counter
 
-import pandas as pd
 import win32api
 import win32event
 import winerror

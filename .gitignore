@@ -6,7 +6,6 @@ filesystem.db
 filesystem.db*
 fulltext.idx.pkl
 resnet50_coco_best_v2.1.0.h5
-
 venv
 env
 /dist/*.db
@@ -16,3 +15,7 @@ env
 /dist/resnet50_coco_best_v2.1.0.h5
 /ttkbootstrap/
 /output/
+/main.py
+/dist/ffmpeg.exe
+/dist/ffplay.exe
+/dist/ffprobe.exe
