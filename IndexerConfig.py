@@ -8,23 +8,23 @@ from tkinter import ttk, filedialog
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from dist.shared import BASE_DIR
 
-Indexer = namedtuple('Indexer', ['disk', 'fulltext', 'image'])
+Indexer = namedtuple('Indexer', ['disk', 'fulltext', 'image', 'audio'])
 
 
 class IndexerConfig:
-    def __init__(self, master, style_theme):
+    def __init__(self, master, style_theme=None):
 
         self.master = master
         root = tk.Toplevel(master)
         root.title("Indexer Configuration")
         root.resizable(False, False)
-        icon_file = os.path.join(BASE_DIR, 'dist', 'ahsearch.ico')
-        root.iconbitmap(icon_file)
+        root.iconbitmap(os.path.join(BASE_DIR, 'dist', 'ahsearch.ico'))
         root.geometry("500x390")
+        root.wm_transient(master)
         self.root = root
         self.config_file = os.path.join(BASE_DIR, 'dist', 'ahsearch.config')
 
-        self.indexer = Indexer(*['File Indexer', 'Full Text Indexer', 'Image Recognition Indexer'])
+        self.indexer = Indexer(*['File Indexer', 'Full Text', 'Image Recognition', 'Audio Indexer'])
 
         self.indexer_obj = tk.StringVar()
         self.indexer_obj.set(self.indexer.disk)
@@ -38,23 +38,26 @@ class IndexerConfig:
         folder_label.grid(row=0, column=0, sticky=tk.W)
 
         folder_name = tk.Entry(indexer_frame)
-        folder_name.grid(row=0, column=1, columnspan=2, ipady=4, sticky=tk.EW)
+        folder_name.grid(row=0, column=1, columnspan=4, ipady=4, sticky=tk.EW)
         folder_name.focus()
 
         folder_button = ttk.Button(indexer_frame, text="Select", width=6, command=self.fsel, style='primary.TButton')
-        folder_button.grid(row=0, column=3, sticky=tk.EW)
+        folder_button.grid(row=0, column=5, sticky=tk.EW)
 
         indexer_label = ttk.Label(indexer_frame, width=15, text="Select Indexer: ", font=("Arial", 10, "bold"))
         indexer_label.grid(row=1, column=0, sticky=tk.EW, pady=10)
-        disk_indexer = ttk.Radiobutton(indexer_frame, text="File Indexer", width=10, variable=self.indexer_obj,
-                                       value=self.indexer.disk)
+        params = dict(text="File Indexer", width=5, variable=self.indexer_obj, value=self.indexer.disk)
+        disk_indexer = ttk.Radiobutton(indexer_frame, **params)
         disk_indexer.grid(row=1, column=1, sticky=tk.EW)
-        fdisk_indexer = ttk.Radiobutton(indexer_frame, text="Full Text Indexer", width=15, variable=self.indexer_obj,
-                                        value=self.indexer.fulltext)
+        params = dict(text="Full Text", width=5, variable=self.indexer_obj, value=self.indexer.fulltext)
+        fdisk_indexer = ttk.Radiobutton(indexer_frame, **params)
         fdisk_indexer.grid(row=1, column=2, sticky=tk.EW)
-        object_indexer = ttk.Radiobutton(indexer_frame, text="Image Recognition Indexer", width=17, variable=self.indexer_obj,
-                                         value=self.indexer.image)
+        params = dict(text="Image Recognition", width=10, variable=self.indexer_obj, value=self.indexer.image)
+        object_indexer = ttk.Radiobutton(indexer_frame, **params)
         object_indexer.grid(row=1, column=3, sticky=tk.EW)
+        params = dict(text="Audio Indexer", width=10, variable=self.indexer_obj, value=self.indexer.audio)
+        audio_indexer = ttk.Radiobutton(indexer_frame, **params)
+        audio_indexer.grid(row=1, column=4, sticky=tk.EW)
 
         lf = ttk.Frame(root)
         lf.pack(side='top', fill=tk.BOTH, padx=10, pady=(0, 10))
@@ -106,8 +109,9 @@ class IndexerConfig:
     def run_indexer(self):
         executable = {
             'File Indexer': ('AHDiskIndexer.exe', 'AHDiskIndexer.py'),
-            'Full Text Indexer': ('AHFullTextIndexer.exe', 'AHFullTextIndexer.py'),
-            'Image Recognition Indexer': ('AHObjectDetector.exe', 'AHObjectDetector.py')
+            'Full Text': ('AHFullTextIndexer.exe', 'AHFullTextIndexer.py'),
+            'Image Recognition': ('AHObjectDetector.exe', 'AHObjectDetector.py'),
+            'Audio Indexer': ('audioToText.exe', 'audio_to_text.py')
         }
         target = os.path.join(BASE_DIR, 'dist', executable[self.indexer_obj.get()][0])
         if os.path.exists(target):
