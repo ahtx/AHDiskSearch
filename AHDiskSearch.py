@@ -89,11 +89,14 @@ def show(e=""):
 
 
 def grab_full_path():
-    cur_item = list_box.focus()
-    cur_text = list_box.item(cur_item)['values'][0]
-    search.clipboard_clear()
-    search.clipboard_append(cur_text)
-    search.update()
+    try:
+        cur_item = list_box.focus()
+        cur_text = list_box.item(cur_item)['values'][0]
+        search.clipboard_clear()
+        search.clipboard_append(cur_text)
+        search.update()
+    except:
+        pass
 
 
 def grab_folder_path():
@@ -120,7 +123,7 @@ def open_in_explorer():
 
 
 def iconfig():
-    ic = IndexerConfig(search, style_theme)
+    ic = IndexerConfig(search, style)
 
 
 def load_file():
@@ -130,16 +133,26 @@ def load_file():
 
 
 if __name__ == '__main__':
-    photo_button = ttk.Radiobutton()
+    search = tk.Tk()
     imgobj = tk.IntVar()
     imgobj.set(2)
     style_theme = "cosmo"
     style = Style(theme=style_theme)
+    highlight_color = '#64ed71'
+    style.configure(
+        'TButton',
+        borderwidth=3,
+    )
+    style.map('primary.TButton', bordercolor=[('focus', highlight_color)])
+    style.map('secondary.TButton', bordercolor=[('focus', highlight_color)])
+    style.map('warning.TButton', bordercolor=[('focus', highlight_color)])
+    style.map('BW.TRadiobutton', foreground=[('focus', highlight_color)])
+    style.map('Treeview', bordercolor=[('focus', highlight_color)])
 
     fts = FullTextSearch()
 
     conn = create_connection()
-    search = style.master
+    search.style = style.master
 
     search.geometry("1025x510")
     # search.eval('tk::PlaceWindow . center')
@@ -153,6 +166,10 @@ if __name__ == '__main__':
     search.columnconfigure(2, weight=1)
     search.columnconfigure(3, weight=1)
     search.columnconfigure(4, weight=1)
+    search.bind('<Return>', show)
+    search.bind('<Control-x>', lambda event: search.destroy())
+    search.bind('<Control-c>', lambda event: grab_full_path())
+    search.bind('<Control-s>', lambda event: iconfig())
 
     params = dict(width=1, text=" ", font=("Arial", 10))
     # emptyLabel2 = tk.Label(search, **params).grid(row=1, columnspan=6, sticky=tk.EW)
@@ -160,10 +177,11 @@ if __name__ == '__main__':
     params['font'] = ("Arial", 10, "bold")
     search_label = tk.Label(search, **params).grid(row=2, column=0, sticky=tk.EW)
     search_value = tk.StringVar()
-    search_input = tk.Entry(search, width=1, textvariable=search_value)
+    search_input = tk.Entry(search, width=1, textvariable=search_value, highlightcolor=highlight_color)
     search_input.grid(row=2, column=1, sticky=tk.EW, ipady=4, padx=(5, 0))
+    search.bind('<Control-q>', lambda event: search_input.focus())
     search_input.focus()
-    
+
     params = dict(text="Search", width=1, command=show, style='primary.TButton')
     search_button = ttk.Button(search, **params).grid(row=2, column=2, sticky=tk.EW, padx=(10, 1))
     params = dict(text="Config", width=1, command=iconfig, style='primary.TButton')
@@ -173,12 +191,12 @@ if __name__ == '__main__':
 
     lf = ttk.Labelframe(search, text='Parameters', padding=(5, 5, 5, 5))
     lf.grid(row=3, column=0, columnspan=6, sticky=tk.EW)
+    params = dict(style='BW.TRadiobutton', variable=imgobj)
     photo_label = ttk.Label(lf, width=15, text="Search type: ", font=("Arial", 10, "bold")).pack(side="left")
-    photo_button2 = ttk.Radiobutton(lf, width=12, text="Filenames", variable=imgobj, value=2).pack(side='left')
-    photo_button3 = ttk.Radiobutton(lf, width=15, text="Full Text", variable=imgobj, value=3).pack(side='left')
-    photo_button1 = ttk.Radiobutton(lf, width=15, text="Image Objects", variable=imgobj, value=1).pack(side='left')
-    photo_button4 = ttk.Radiobutton(lf, width=15, text="Audio/Video to Text", variable=imgobj, value=4).pack(side='left')
-    search.bind('<Return>', show)
+    photo_button2 = ttk.Radiobutton(lf, width=12, text="Filenames", value=2, **params).pack(side='left')
+    photo_button3 = ttk.Radiobutton(lf, width=15, text="Full Text", value=3, **params).pack(side='left')
+    photo_button1 = ttk.Radiobutton(lf, width=15, text="Image Objects", value=1, **params).pack(side='left')
+    photo_button4 = ttk.Radiobutton(lf, width=15, text="Audio/Video to Text", value=4, **params).pack(side='left')
 
     menu = tk.Menu(search, tearoff=0)
     menu.add_command(label="Copy full path", command=grab_full_path)

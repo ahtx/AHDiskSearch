@@ -39,11 +39,24 @@ def read_path_config():
     return paths if paths else []
 
 
-def insert_entry(conn, v1, v2, v3, v4):
-    sql = "INSERT INTO files(filename,size,creation,modification) VALUES(?,?,?,?) "
-    cur = conn.cursor()
-    cur.execute(sql, (v1, v2, v3, v4))
-    conn.commit()
+def entry_exists(conn, filename, size):
+    sql = "SELECT filename FROM files WHERE filename = ? AND size = ? "
+    row = conn.cursor().execute(sql, (filename, size)).fetchone()
+    return True if row else False
+
+
+def insert_entry(conn, filename, size, creation, modification):
+    args = (filename, size, creation, modification)
+    try:
+        query = "INSERT INTO files(filename,size,creation,modification) VALUES(?,?,?,?) "
+        conn.cursor().execute(query, args)
+        conn.commit()
+    except IntegrityError:
+        if not entry_exists(conn, filename, size):
+            LOGGER.warning(f"Updating {filename}")
+            query = "UPDATE files SET size = ?, modification = ? WHERE filename = ? "
+            conn.cursor().execute(query, (size, modification, filename))
+            conn.commit()
 
 
 def save_paths(path, conn):
