@@ -62,8 +62,7 @@ def update_modified(conn, filename):
         LOGGER.warning(error)
 
 
-def update_filenames(existing, new):
-    conn = create_connection()
+def update_filenames(conn, existing, new):
     for table in TABLES:
         exists = entry_exists(conn, table, existing)
         if exists:
@@ -76,7 +75,6 @@ def update_filenames(existing, new):
                 LOGGER.warning(error)
         else:
             insert_values(conn, new)
-    conn.close()
 
 
 def get_windows_path(file_path):
@@ -107,11 +105,12 @@ class EventHandler(FileSystemEventHandler):
         conn.close()
 
     def on_moved(self, event: FileMovedEvent):
-        global observer
         src = get_windows_path(event.src_path)
         dest = get_windows_path(event.dest_path)
         if not event.is_directory:
-            update_filenames(src, dest)
+            conn = create_connection()
+            update_filenames(conn, src, dest)
+            conn.close()
 
     def on_created(self, event):
         conn = create_connection()
