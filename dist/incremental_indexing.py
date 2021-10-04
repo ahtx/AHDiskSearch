@@ -1,9 +1,11 @@
 import os
+import sys
 from pathlib import PureWindowsPath, Path
 
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileModifiedEvent, FileMovedEvent
 
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from dist.shared import BASE_DIR, create_connection, LOGGER
 
 
