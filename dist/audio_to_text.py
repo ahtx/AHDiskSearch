@@ -1,7 +1,7 @@
 import itertools
 import os
 import sys
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from sqlite3 import OperationalError
 from time import perf_counter
 
@@ -20,7 +20,7 @@ from dist.shared import BASE_DIR, LOGGER, create_connection
 mutex = win32event.CreateMutex(None, 1, 'mutex_AudioToText')
 if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
     mutex = None
-    LOGGER.warning("AHObjectDetector is already running")
+    LOGGER.warning("AudioToText is already running")
     sys.exit(0)
 
 

@@ -1,6 +1,7 @@
 import glob
 import os
 import sys
+from pathlib import Path
 from time import perf_counter
 from sqlite3 import Error, IntegrityError
 
@@ -67,7 +68,7 @@ def save_paths(path, conn):
     for index, filename in enumerate(files):
         LOGGER.warning(f"Indexing {index + 1} out of {total}")
         try:
-            filename = filename.replace("/", os.path.sep).replace("\\", os.path.sep)
+            filename = str(Path(filename).absolute())
             filestat = os.stat(filename)
             filesize = filestat.st_size
             filecreation = filestat.st_ctime
