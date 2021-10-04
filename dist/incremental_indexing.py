@@ -1,6 +1,6 @@
 import os
 import sys
-from pathlib import PureWindowsPath, Path
+from pathlib import Path
 
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileModifiedEvent, FileMovedEvent
@@ -10,13 +10,13 @@ from dist.shared import BASE_DIR, create_connection, LOGGER
 
 
 def read_path_config():
-    global config_file
     paths = None
     try:
+        config_file = str(Path(os.path.join(BASE_DIR, 'dist', 'ahsearch.config')).absolute())
         with open(config_file, "r") as c_file:
             paths = c_file.readlines()
     except Exception as error:
-        pass
+        LOGGER.warning(error)
     return paths if paths else []
 
 
@@ -121,13 +121,9 @@ class EventHandler(FileSystemEventHandler):
 if __name__ == '__main__':
     observer = Observer()
     TABLES = ('files', 'image_objects', 'voices')
-    config_file = PureWindowsPath(os.path.join(BASE_DIR, 'dist', 'ahsearch.config')).as_posix()
-    paths = read_path_config()
     event_handler = EventHandler()
-    # observer.schedule(event_handler, ".", recursive=True)
-    for path in paths:
+    for path in read_path_config():
         path = str(Path(path.strip()).absolute())
-        # event_handler = EventHandler(patterns=path, ignore_directories=True, case_sensitive=False)
         observer.schedule(event_handler, path, recursive=True)
     observer.start()
     observer.join()
