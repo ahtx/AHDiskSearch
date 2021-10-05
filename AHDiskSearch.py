@@ -132,6 +132,20 @@ def load_file():
     os.startfile(cur_text)
 
 
+def create_tables():
+    tables = dict(
+        files="(filename TEXT PRIMARY KEY, size BIGINT, creation DATETIME, modification DATETIME)",
+        image_objects="(filename TEXT PRIMARY KEY, objects TEXT, probabilities TEXT)",
+        voices="(filename TEXT PRIMARY KEY, words TEXT)"
+    )
+    for table in ('files', 'image_objects', 'voices'):
+        query = f"CREATE TABLE {table} {tables[table]};"
+        try:
+            conn.cursor().execute(query)
+        except Exception as error:
+            LOGGER.warning(error)
+
+
 if __name__ == '__main__':
     search = tk.Tk()
     imgobj = tk.IntVar()
@@ -152,6 +166,7 @@ if __name__ == '__main__':
     fts = FullTextSearch()
 
     conn = create_connection()
+    create_tables()
     search.style = style.master
 
     search.geometry("1025x510")

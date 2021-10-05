@@ -83,6 +83,7 @@ tqdm==4.62.3
 ttkbootstrap==0.5.1
 typing-extensions==3.7.4.3
 urllib3==1.26.6
+watchdog==2.1.6
 Werkzeug==2.0.1
 whichcraft==0.6.1
 wrapt==1.12.1
