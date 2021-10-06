@@ -1,7 +1,7 @@
 import itertools
 import os
 import sys
-from pathlib import Path, PureWindowsPath
+from pathlib import Path
 from sqlite3 import OperationalError
 from time import perf_counter
 
@@ -15,13 +15,6 @@ from pydub.silence import split_on_silence
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from dist.shared import BASE_DIR, LOGGER, create_connection
-
-# Disallowing Multiple Instance
-mutex = win32event.CreateMutex(None, 1, 'mutex_AudioToText')
-if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
-    mutex = None
-    LOGGER.warning("AudioToText is already running")
-    sys.exit(0)
 
 
 def create_table(conn):
@@ -51,7 +44,7 @@ def get_size_mb(filename):
     return round(os.path.getsize(filename) / (1024 * 1024), 3)
 
 
-def video_to_audio(filename):
+def video_to_audio(filename, VIDEO_CODECS):
     extension = Path(filename).name.split('.')[-1]
     if extension.lower() not in VIDEO_CODECS:
         return filename
@@ -65,7 +58,7 @@ def video_to_audio(filename):
     return temp_file
 
 
-def get_text(filename):
+def get_text(filename, r):
     # open the file
     try:
         with sr.AudioFile(filename) as source:
@@ -79,12 +72,12 @@ def get_text(filename):
         return ""
 
 
-def get_large_audio_transcription(filename):
+def get_large_audio_transcription(filename, r):
     file_size = get_size_mb(filename)
     LOGGER.warning(f"File {filename}: size => {file_size}")
     whole_text = ""
     if file_size < 3:
-        whole_text += f"{get_text(filename)} "
+        whole_text += f"{get_text(filename, r)} "
     else:
         long_audio = AudioSegment.from_file(filename)
         audio_chunks = split_on_silence(
@@ -99,13 +92,23 @@ def get_large_audio_transcription(filename):
             file_size = get_size_mb(filename)
             LOGGER.warning(f"{filename}: SIZE =>> {file_size}")
             if file_size < 3:
-                text = get_text(filename)
+                text = get_text(filename, r)
                 whole_text += f" {text}" if whole_text else text
             continue
     return whole_text
 
 
-def start(conn):
+def start():
+    FFMPEG = os.path.join(BASE_DIR, 'dist', 'ffmpeg.exe')
+    FFPROBE = os.path.join(BASE_DIR, 'dist', 'ffprobe.exe')
+    VIDEO_CODECS = ('mp4',)
+    AudioSegment.converter = FFMPEG
+    AudioSegment.ffprobe = FFPROBE
+    # create a speech recognition object
+    recognizer = sr.Recognizer()
+    t1_start = perf_counter()
+    conn = create_connection()
+    create_table(conn)
     query = "SELECT filename FROM files WHERE filename "
     query += "LIKE '%.mp3' OR filename LIKE '%.wav%' OR filename LIKE '%.mp4%'"
     try:
@@ -115,28 +118,23 @@ def start(conn):
             LOGGER.warning(f"{filename} indexing {i} out of {total}")
             if entry_exists(conn, filename):
                 continue
-            audio_file = video_to_audio(filename)
-            words = get_large_audio_transcription(audio_file).strip()
+            audio_file = video_to_audio(filename, VIDEO_CODECS)
+            words = get_large_audio_transcription(audio_file, recognizer).strip()
             LOGGER.warning(f'WORDS: {words}')
             if not words:
                 continue
             insert_entry(conn, filename, words.lower())
     except Exception as err:
         LOGGER.error(err)
+    t2_stop = perf_counter()
+    LOGGER.info("Time elapsed {} seconds".format(t2_stop - t1_start))
 
 
 if __name__ == '__main__':
-    FFMPEG = os.path.join(BASE_DIR, 'dist', 'ffmpeg.exe')
-    FFPROBE = os.path.join(BASE_DIR, 'dist', 'ffprobe.exe')
-    VIDEO_CODECS = ('mp4', )
-    AudioSegment.converter = FFMPEG
-    AudioSegment.ffprobe = FFPROBE
-    recognizer = sr.Recognizer()
-    # create a speech recognition object
-    r = sr.Recognizer()
-    t1_start = perf_counter()
-    conn = create_connection()
-    create_table(conn)
-    start(conn)
-    t1_stop = perf_counter()
-    LOGGER.info("Time elapsed {} seconds".format(t1_stop - t1_start))
+    # Disallowing Multiple Instance
+    mutex = win32event.CreateMutex(None, 1, 'mutex_AudioToText')
+    if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
+        mutex = None
+        LOGGER.warning("AudioToText is already running")
+        sys.exit(0)
+    start()
