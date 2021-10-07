@@ -5,10 +5,10 @@ from pathlib import Path
 from sqlite3 import OperationalError
 from time import perf_counter
 
-import moviepy.editor as mp
 import win32api
 import win32event
 import winerror
+from moviepy.video.io.VideoFileClip import VideoFileClip
 from pydub import AudioSegment
 import speech_recognition as sr
 from pydub.silence import split_on_silence
@@ -50,7 +50,7 @@ def video_to_audio(filename, VIDEO_CODECS):
         return filename
     temp_file = os.path.join(os.environ.get('TEMP'), 'video_audio.wav')
     try:
-        clip = mp.VideoFileClip(filename).subclip(0, 20)
+        clip = VideoFileClip(filename).subclip(0, 20)
         clip.audio.write_audiofile(temp_file)
         return temp_file
     except Exception as error:
@@ -99,6 +99,7 @@ def get_large_audio_transcription(filename, r):
 
 
 def start():
+    LOGGER.warning('Starting audio to text conversion')
     FFMPEG = os.path.join(BASE_DIR, 'dist', 'ffmpeg.exe')
     FFPROBE = os.path.join(BASE_DIR, 'dist', 'ffprobe.exe')
     VIDEO_CODECS = ('mp4',)
@@ -127,7 +128,7 @@ def start():
     except Exception as err:
         LOGGER.error(err)
     t2_stop = perf_counter()
-    LOGGER.info("Time elapsed {} seconds".format(t2_stop - t1_start))
+    LOGGER.warning("Time elapsed {} seconds".format(t2_stop - t1_start))
 
 
 if __name__ == '__main__':

@@ -5,7 +5,7 @@ from collections import namedtuple
 from functools import reduce
 
 LOGGER = logging.getLogger(__name__)
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.getcwd()
 LOGGER_TIME_FORMAT = '%b-%d-%y %H:%M:%S'
 Stats = namedtuple('Stats', ['count', 'size', 'datetime'])
 c_handler = logging.StreamHandler()

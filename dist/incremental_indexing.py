@@ -63,7 +63,7 @@ def update_modified(conn, filename):
 
 
 def update_filenames(conn, existing, new):
-    for table in TABLES:
+    for table in ('files', 'image_objects', 'voices'):
         exists = entry_exists(conn, table, existing)
         if exists:
             try:
@@ -82,7 +82,7 @@ def get_windows_path(file_path):
 
 
 def delete_file(conn, filename):
-    for table in TABLES:
+    for table in ('files', 'image_objects', 'voices'):
         try:
             query = f"DELETE FROM {table} WHERE filename = ?;"
             conn.cursor().execute(query, (filename,))
@@ -118,12 +118,15 @@ class EventHandler(FileSystemEventHandler):
         conn.close()
 
 
-if __name__ == '__main__':
+def start():
     observer = Observer()
-    TABLES = ('files', 'image_objects', 'voices')
     event_handler = EventHandler()
     for path in read_path_config():
         path = str(Path(path.strip()).absolute())
         observer.schedule(event_handler, path, recursive=True)
     observer.start()
     observer.join()
+
+
+if __name__ == '__main__':
+    start()

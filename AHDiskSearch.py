@@ -11,18 +11,25 @@ from ttkbootstrap import Style
 
 from AHFTSearch import FullTextSearch
 
+# multiprocessing.freeze_support()
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from dist.AHDiskIndexer import start as ah_disk_indexer
-from dist.AHFullTextIndexer import start as ah_full_text_indexer
-from dist.AHObjectDetector import start as ah_image_recognition
-from dist.audio_to_text import start as audio_to_text
+from dist import AHDiskIndexer, audio_to_text, AHFullTextIndexer, AHObjectDetector
 from dist.shared import LOGGER, create_connection, get_sub_string, DATE_TIME_FORMAT, BASE_DIR
+
+
+class ProcessAsync(multiprocessing.Process):
+    def __init__(self, target):
+        super(ProcessAsync, self).__init__()
+        self.target = target
+
+    def run(self) -> None:
+        self.target()
 
 
 class App(tk.Tk, FullTextSearch):
     list_box_cols = ('Filename', 'Size', 'Created', 'Modified')
-    indexers = (ah_disk_indexer, ah_full_text_indexer, ah_image_recognition, audio_to_text)
-    indexer_process: multiprocessing.Process = None
+    indexers = (AHDiskIndexer.start, AHFullTextIndexer.start, AHObjectDetector.start, audio_to_text.start)
+    indexer_process: ProcessAsync
 
     def __init__(self):
         super(App, self).__init__()
@@ -32,9 +39,14 @@ class App(tk.Tk, FullTextSearch):
         self.geometry('1065x555+30+30')
         self.iconbitmap(os.path.join(BASE_DIR, 'dist', 'ahsearch.ico'))
         style = Style(theme="cosmo")
+        style.configure('TEntry', font=('Helvetica', 12))
         style.configure("TProgressbar", thickness=5)
-        # style.configure("Treeview", borderwidth=0)
         self.style = style.master
+        highlight_color = '#96a89b'
+        style.map('TButton', bordercolor=[('focus !disabled', highlight_color)])
+        style.map('TEntry', bordercolor=[('focus !disabled', highlight_color)])
+        style.map('TRadiobutton', foreground=[('focus', highlight_color)])
+        style.map('Treeview', bordercolor=[('focus', highlight_color)])
         self.resizable(0, 0)
         self.query_var = tk.StringVar()
         self.dock_viewer = None
@@ -60,6 +72,9 @@ class App(tk.Tk, FullTextSearch):
         self.empty_frame.columnconfigure(0, weight=1)
         self.empty_frame.grid(row=2, column=0, sticky=tk.NSEW, padx=10, pady=(0, 2))
         self.active_frames = None
+        self.show_preview = True
+        self.indexer_type = tk.IntVar()
+        self.indexer_type.set(1)
         self.home_page()
 
     def start_progress(self):
@@ -70,23 +85,31 @@ class App(tk.Tk, FullTextSearch):
         self.empty_frame.tkraise()
         self.pb.stop()
 
-    def start_indexing(self):
-        self.stop_indexing()
-        self.start_progress()
+    def start_indexing(self, current_indexer=0):
         indexer_index = self.indexer_type.get() - 1
-        indexer = self.indexers[indexer_index]
-        self.indexer_process = multiprocessing.Process(target=indexer)
+        if self.indexer_type.get() < 5:
+            self.stop_indexing()
+            current_indexer = indexer_index
+        self.start_progress()
+        indexer = self.indexers[current_indexer]
+        self.indexer_process = ProcessAsync(target=indexer)
         self.indexer_process.start()
-        self.monitor()
+        self.monitor(current_indexer)
 
     def stop_indexing(self):
         if self.indexer_process and self.indexer_process.is_alive():
             self.indexer_process.terminate()
+        self.stop_progress()
 
-    def monitor(self):
+    def monitor(self, current_indexer=0):
         """ Monitor the download thread """
         if self.indexer_process.is_alive():
-            self.after(100, lambda: self.monitor())
+            self.after(100, lambda: self.monitor(current_indexer))
+        elif self.indexer_type.get() == 5:
+            self.stop_progress()
+            current_indexer += 1
+            if current_indexer < 4:
+                self.start_indexing(current_indexer)
         else:
             self.stop_progress()
 
@@ -113,7 +136,23 @@ class App(tk.Tk, FullTextSearch):
     def file_preview(self, widget=None):
         cur_item = widget.focus()
         file = widget.item(cur_item)['values'][0]
-        self.dock_viewer.display_file(file)
+        self.dock_viewer.display_file(file, pages=1)
+
+    def show_hide_preview(self, widget=None):
+        self.show_preview = False if self.show_preview else True
+        if self.show_preview:
+            self.dock_viewer.grid(row=0, column=2, sticky=tk.NSEW)
+            widget.column('Filename', width=420)
+            widget.column('Size', width=90)
+            widget.column('Created', width=115)
+            widget.column('Modified', width=115)
+        else:
+            self.dock_viewer.grid_forget()
+            widget.column('Filename', width=590)
+            widget.column('Size', width=120)
+            widget.column('Created', width=160)
+            widget.column('Modified', width=160)
+        widget.update()
 
     def message(self, message, name="Error"):
         methods = dict(Error=messagebox.showerror, Info=messagebox.showinfo, Warning=messagebox.showwarning)
@@ -180,14 +219,13 @@ class App(tk.Tk, FullTextSearch):
     def config_page(self):
         self.title('Configure Indexing')
         self.destroy_active_frames()
-        self.indexer_type = tk.IntVar()
         file_frame = ttk.Frame(self)
         file_frame.columnconfigure(0, weight=1)
         file_frame.columnconfigure(1, weight=15)
         file_frame.columnconfigure(2, weight=1)
         label = ttk.Label(file_frame, text='Folder: ')
         label.grid(column=0, row=0, sticky=tk.W)
-        file_entry = ttk.Entry(file_frame, textvariable=self.query_var, width=131)
+        file_entry = ttk.Entry(file_frame, textvariable=self.query_var, width=131, style='TEntry')
         file_entry.focus()
         file_entry.grid(column=1, row=0, sticky=tk.EW)
         search_button = ttk.Button(file_frame, text='Select')
@@ -202,7 +240,6 @@ class App(tk.Tk, FullTextSearch):
         radio_frame.columnconfigure(6, weight=1)
         grid_params = dict(row=2, sticky=tk.W)
         ttk.Label(radio_frame, text='Select Indexer: ').grid(column=0, **grid_params)
-        self.indexer_type.set(1)
         filename_indexer = ttk.Radiobutton(radio_frame, text='File Indexer', variable=self.indexer_type, value=1)
         filename_indexer.grid(column=1, **grid_params)
         fulltext_indexer = ttk.Radiobutton(radio_frame, text='Full Text', variable=self.indexer_type, value=2)
@@ -212,6 +249,9 @@ class App(tk.Tk, FullTextSearch):
         image_objects_indexer.grid(column=3, **grid_params)
         audio_search_indexer = ttk.Radiobutton(radio_frame, text='Audio To Text', variable=self.indexer_type, value=4)
         audio_search_indexer.grid(column=4, **grid_params)
+
+        all_indexer = ttk.Radiobutton(radio_frame, text='All Indexer', variable=self.indexer_type, value=5)
+        all_indexer.grid(column=5, **grid_params)
         radio_frame.grid(column=0, row=1, sticky=tk.EW, padx=10, ipady=5)
 
         list_frame = ttk.Frame(self)
@@ -253,15 +293,23 @@ class App(tk.Tk, FullTextSearch):
         self.search_type = tk.IntVar()
         query_frame = ttk.Frame(self)
         query_frame.columnconfigure(0, weight=1)
-        query_frame.columnconfigure(1, weight=15)
+        query_frame.columnconfigure(1, weight=17)
         query_frame.columnconfigure(2, weight=1)
+        query_frame.columnconfigure(3, weight=2)
         label = ttk.Label(query_frame, text='Search: ')
         label.grid(column=0, row=0, sticky=tk.W)
         self.query_var.set('')
-        query_entry = ttk.Entry(query_frame, textvariable=self.query_var, width=130)
+        query_entry = ttk.Entry(query_frame, textvariable=self.query_var, width=114, style='TEntry')
         query_entry.focus()
         query_entry.grid(column=1, row=0, sticky=tk.EW)
-        query_frame.grid(column=0, row=0, sticky=tk.NSEW, padx=10, pady=(10, 10))
+
+        search_button = ttk.Button(query_frame, text='Search')
+        search_button.grid(column=2, row=0, sticky=tk.W)
+
+        toggle_preview = ttk.Button(query_frame, text='Toggle Preview')
+        toggle_preview.grid(column=3, row=0, sticky=tk.E, padx=2)
+
+        query_frame.grid(column=0, row=0, sticky=tk.EW, padx=10, pady=(10, 10))
 
         radio_frame = ttk.LabelFrame(self, text='Parameters')
         radio_frame.columnconfigure(0, weight=1)
@@ -284,11 +332,13 @@ class App(tk.Tk, FullTextSearch):
         radio_frame.grid(column=0, row=1, sticky=tk.NSEW, padx=10, ipady=5)
 
         preview_list_frame = ttk.Frame(self)
-        preview_list_frame.columnconfigure(0, weight=7)
-        # preview_list_frame.columnconfigure(1, weight=1)
+        preview_list_frame.columnconfigure(0, weight=200)
         preview_list_frame.columnconfigure(2, weight=4)
-        self.dock_viewer = DocViewer(preview_list_frame, width=100)
+
+        self.dock_viewer = DocViewer(preview_list_frame, width=100, scrollbars='horizontal')
+        self.dock_viewer.fit_page(2.9)
         self.dock_viewer.grid(row=0, column=2, sticky=tk.NSEW)
+
         params = dict(columns=self.list_box_cols, show='headings', height=19)
         list_box = ttk.Treeview(preview_list_frame, **params)
         scrollbar = ttk.Scrollbar(preview_list_frame, orient="vertical", command=list_box.yview)
@@ -306,20 +356,18 @@ class App(tk.Tk, FullTextSearch):
             list_box.column(col, minwidth=60, width=100)
             list_box.heading(col, text=col, command=lambda _col=col: treeview_sort_column(_col, False))
 
-        list_box.column('Filename', width=350)
+        list_box.column('Filename', width=390)
         list_box.column('Size', width=90)
         list_box.column('Created', width=115)
         list_box.column('Modified', width=115)
         list_box.bind("<<TreeviewSelect>>", lambda event, widget=list_box: self.file_preview(widget=widget))
-        list_box.grid(row=0, column=0, sticky=tk.EW)
-
-        search_button = ttk.Button(query_frame, text='Search')
+        list_box.grid(row=0, column=0, sticky=tk.NSEW)
         search_button.config(command=lambda widget=list_box: self.fill_treeview(widget=widget))
-        search_button.grid(column=2, row=0, sticky=tk.E)
 
         preview_list_frame.grid(column=0, row=4, sticky=tk.NSEW, padx=10, pady=(0, 10))
         list_box.bind("<Double-1>", lambda event, _event='file', widget=list_box: self.open_target(_event, widget))
         self.bind('<Return>', lambda event, widget=list_box: self.fill_treeview(widget=widget))
+        toggle_preview.config(command=lambda widget=list_box: self.show_hide_preview(widget=widget))
         self.active_frames = (query_frame, radio_frame, preview_list_frame)
 
 
