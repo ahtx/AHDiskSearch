@@ -1,249 +1,376 @@
-import os
-from sys import exit, path
-import tkinter as tk
-from functools import reduce
-from pathlib import Path
-from tkinter import ttk, messagebox
 import datetime
+import multiprocessing
+import os
+import sys
+import tkinter as tk
+from pathlib import Path
+from tkinter import ttk, messagebox, filedialog
+
+from tkdocviewer import DocViewer
 from ttkbootstrap import Style
-from IndexerConfig import IndexerConfig
+
 from AHFTSearch import FullTextSearch
 
-path.append(os.path.join(os.path.dirname(__file__), '..'))
-from dist.shared import create_connection, BASE_DIR, LOGGER
+# multiprocessing.freeze_support()
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from dist import AHDiskIndexer, audio_to_text, AHFullTextIndexer, AHObjectDetector
+from dist.shared import LOGGER, create_connection, get_sub_string, DATE_TIME_FORMAT, BASE_DIR
 
 
-def treeview_sort_column(tv, col, reverse):
-    items = [(tv.set(k, col), k) for k in tv.get_children('')]
-    items.sort(reverse=reverse)
+class ProcessAsync(multiprocessing.Process):
+    def __init__(self, target):
+        super(ProcessAsync, self).__init__()
+        self.target = target
 
-    # rearrange items in sorted positions
-    for index, (val, k) in enumerate(items):
-        tv.move(k, '', index)
-
-    # reverse sort next time
-    tv.heading(col, text=col, command=lambda _col=col: treeview_sort_column(tv, _col, not reverse))
+    def run(self) -> None:
+        self.target()
 
 
-def message(message, name="Error"):
-    methods = dict(Error=messagebox.showerror, Info=messagebox.showinfo, Warning=messagebox.showwarning)
-    methods[name](title=name, message=message)
+class App(tk.Tk, FullTextSearch):
+    list_box_cols = ('Filename', 'Size', 'Created', 'Modified')
+    indexers = (AHDiskIndexer.start, AHFullTextIndexer.start, AHObjectDetector.start, audio_to_text.start)
+    indexer_process: ProcessAsync
 
+    def __init__(self):
+        super(App, self).__init__()
+        self.conn = create_connection()
+        self.config_file = os.path.join(BASE_DIR, 'dist', 'ahsearch.config')
+        self.title('Full Disk Search')
+        self.geometry('1065x555+30+30')
+        self.iconbitmap(os.path.join(BASE_DIR, 'dist', 'ahsearch.ico'))
+        style = Style(theme="cosmo")
+        style.configure('TEntry', font=('Helvetica', 12))
+        style.configure("TProgressbar", thickness=5)
+        self.style = style.master
+        highlight_color = '#96a89b'
+        style.map('TButton', bordercolor=[('focus !disabled', highlight_color)])
+        style.map('TEntry', bordercolor=[('focus !disabled', highlight_color)])
+        style.map('TRadiobutton', foreground=[('focus', highlight_color)])
+        style.map('Treeview', bordercolor=[('focus', highlight_color)])
+        self.resizable(0, 0)
+        self.query_var = tk.StringVar()
+        self.dock_viewer = None
+        menubar = tk.Menu(self)
+        self.config(menu=menubar)
+        menubar.add_command(label='Home', command=self.home_page)
+        menubar.add_command(label='Indexer Config', command=self.config_page)
+        # Progress frame
+        self.progress_frame = ttk.Frame(self)
 
-def do_popup(event):
-    try:
-        menu.tk_popup(event.x_root, event.y_root)
-    finally:
-        menu.grab_release()
+        # configrue the grid to place the progress bar is at the center
+        self.progress_frame.columnconfigure(0, weight=1)
+        self.progress_frame.rowconfigure(0, weight=1)
 
+        # progressbar
+        self.pb = ttk.Progressbar(self.progress_frame, orient=tk.HORIZONTAL, mode='indeterminate')
+        self.pb.grid(row=0, column=0, sticky=tk.EW)
 
-def get_sub_string(data: list, query_append, prefix='filename = ', like_query=False):
-    try:
-        assert data, 'Not found'
-        result = reduce(lambda x, y: x.replace("'", "''") + f"{query_append}" + y.replace("'", "''"), data)
-        return prefix + f'{query_append}'.join(
-            f"'%{word}%'" if like_query else f"'{word}'" for word in result.split(f'{query_append}'))
-    except Exception as error:
-        LOGGER.warning(error)
-        return ""
+        # place the progress frame
+        self.progress_frame.grid(row=2, column=0, sticky=tk.NSEW, padx=10, pady=(0, 2))
 
+        self.empty_frame = tk.Frame(self, bg='#007bff')
+        self.empty_frame.columnconfigure(0, weight=1)
+        self.empty_frame.grid(row=2, column=0, sticky=tk.NSEW, padx=10, pady=(0, 2))
+        self.active_frames = None
+        self.show_preview = True
+        self.indexer_type = tk.IntVar()
+        self.indexer_type.set(1)
+        self.home_page()
 
-def get_query(tq):
-    if imgobj.get() == 1:
-        query = "SELECT files.filename, files.size, files.creation, files.modification FROM files "
-        query += "INNER JOIN image_objects on files.filename=image_objects.filename "
-        query += "WHERE files.filename = image_objects.filename AND "
-        query += get_sub_string(tq.split(" "), " AND image_objects.objects LIKE ", "image_objects.objects LIKE ", True)
-    elif imgobj.get() == 4:
-        query = "SELECT files.filename, files.size, files.creation, files.modification FROM files "
-        query += "INNER JOIN voices on files.filename=voices.filename "
-        query += "WHERE files.filename = voices.filename AND "
-        query += get_sub_string(tq.split(" "), " AND voices.words LIKE ", "voices.words LIKE ", True)
-    elif imgobj.get() == 3:
-        text_files = list(fts.run_query(tq))[:100]
-        query = "SELECT * FROM files WHERE "
-        query += get_sub_string(text_files, " OR filename = ")
-    else:
-        query = "SELECT * FROM files WHERE "
-        query += get_sub_string(tq.split(" "), " AND filename LIKE ", "filename LIKE ", True)
-    return query
+    def start_progress(self):
+        self.progress_frame.tkraise()
+        self.pb.start(5)
 
+    def stop_progress(self):
+        self.empty_frame.tkraise()
+        self.pb.stop()
 
-def show(e=""):
-    tq = search_value.get()
-    try:
-        assert tq, "Please enter a query!"
-        query = get_query(tq)
-        list_box.delete(*list_box.get_children())
-        assert not query.lower().endswith('where '), "Data not found!"
-        files = conn.cursor().execute(query).fetchall()
-        for index, row in enumerate(files):
-            filename, size, creation, modification = row
-            utc_create = datetime.datetime.utcfromtimestamp(creation)
-            utc_mod = datetime.datetime.utcfromtimestamp(modification)
-            list_box.insert("", "end", values=(filename, int(size), utc_create, utc_mod))
-    except AssertionError as error:
-        message(error.args[0], "Error")
-    except Exception as err:
-        LOGGER.error(err)
+    def start_indexing(self, current_indexer=0):
+        indexer_index = self.indexer_type.get() - 1
+        if self.indexer_type.get() < 5:
+            self.stop_indexing()
+            current_indexer = indexer_index
+        self.start_progress()
+        indexer = self.indexers[current_indexer]
+        self.indexer_process = ProcessAsync(target=indexer)
+        self.indexer_process.start()
+        self.monitor(current_indexer)
 
+    def stop_indexing(self):
+        if self.indexer_process and self.indexer_process.is_alive():
+            self.indexer_process.terminate()
+        self.stop_progress()
 
-def grab_full_path():
-    try:
-        cur_item = list_box.focus()
-        cur_text = list_box.item(cur_item)['values'][0]
-        search.clipboard_clear()
-        search.clipboard_append(cur_text)
-        search.update()
-    except:
-        pass
+    def monitor(self, current_indexer=0):
+        """ Monitor the download thread """
+        if self.indexer_process.is_alive():
+            self.after(100, lambda: self.monitor(current_indexer))
+        elif self.indexer_type.get() == 5:
+            self.stop_progress()
+            current_indexer += 1
+            if current_indexer < 4:
+                self.start_indexing(current_indexer)
+        else:
+            self.stop_progress()
 
+    def read_config(self, widget):
+        file = open(self.config_file, "r")
+        for line in file.readlines():
+            line = line.strip("\n")
+            widget.insert("end", line)
+        file.close()
 
-def grab_folder_path():
-    cur_item = list_box.focus()
-    folder_path = str(Path(list_box.item(cur_item)['values'][0]).parent)
-    search.clipboard_clear()
-    search.clipboard_append(folder_path)
-    search.update()
+    def save_config(self, widget):
+        self.start_progress()
+        file = open(self.config_file, "w")
+        for i in range(widget.size()):
+            file.write(widget.get(i))
+            file.write("\n")
+        file.close()
+        self.stop_progress()
 
+    def remove_item(self, widget):
+        for i in widget.curselection():
+            widget.delete(i)
 
-def double_click_open(event):
-    try:
-        cur_item = list_box.focus()
-        cur_text = list_box.item(cur_item)['values'][0]
-        os.startfile(cur_text)
-    except Exception as error:
-        message(message=error.args[0])
+    def file_preview(self, widget=None):
+        cur_item = widget.focus()
+        file = widget.item(cur_item)['values'][0]
+        self.dock_viewer.display_file(file, pages=1)
 
+    def show_hide_preview(self, widget=None):
+        self.show_preview = False if self.show_preview else True
+        if self.show_preview:
+            self.dock_viewer.grid(row=0, column=2, sticky=tk.NSEW)
+            widget.column('Filename', width=420)
+            widget.column('Size', width=90)
+            widget.column('Created', width=115)
+            widget.column('Modified', width=115)
+        else:
+            self.dock_viewer.grid_forget()
+            widget.column('Filename', width=590)
+            widget.column('Size', width=120)
+            widget.column('Created', width=160)
+            widget.column('Modified', width=160)
+        widget.update()
 
-def open_in_explorer():
-    cur_item = list_box.focus()
-    folder_path = str(Path(list_box.item(cur_item)['values'][0]).parent)
-    os.system(f"explorer {folder_path}")
+    def message(self, message, name="Error"):
+        methods = dict(Error=messagebox.showerror, Info=messagebox.showinfo, Warning=messagebox.showwarning)
+        methods[name](title=name, message=message)
 
+    def get_query(self, search):
+        search_type = self.search_type.get()
+        if search_type == 1:
+            query = "SELECT * FROM files WHERE "
+            query += get_sub_string(search.split(" "), " AND filename LIKE ", "filename LIKE ", True)
+        elif search_type == 2:
+            text_files = list(self.run_query(search))[:100]
+            query = "SELECT * FROM files WHERE "
+            query += get_sub_string(text_files, " OR filename = ")
+        elif search_type == 3:
+            query = "SELECT files.filename, files.size, files.creation, files.modification FROM files "
+            query += "INNER JOIN image_objects on files.filename=image_objects.filename "
+            query += "WHERE files.filename = image_objects.filename AND "
+            arg_1 = " AND image_objects.objects LIKE "
+            arg_2 = "image_objects.objects LIKE "
+            query += get_sub_string(search.split(" "), arg_1, arg_2, True)
+        else:
+            query = "SELECT files.filename, files.size, files.creation, files.modification FROM files "
+            query += "INNER JOIN voices on files.filename=voices.filename "
+            query += "WHERE files.filename = voices.filename AND "
+            query += get_sub_string(search.split(" "), " AND voices.words LIKE ", "voices.words LIKE ", True)
+        return query
 
-def iconfig():
-    ic = IndexerConfig(search, style)
-
-
-def load_file():
-    cur_item = list_box.focus()
-    cur_text = list_box.item(cur_item)['values'][0]
-    os.startfile(cur_text)
-
-
-def create_tables():
-    tables = dict(
-        files="(filename TEXT PRIMARY KEY, size BIGINT, creation DATETIME, modification DATETIME)",
-        image_objects="(filename TEXT PRIMARY KEY, objects TEXT, probabilities TEXT)",
-        voices="(filename TEXT PRIMARY KEY, words TEXT)"
-    )
-    for table in ('files', 'image_objects', 'voices'):
-        query = f"CREATE TABLE {table} {tables[table]};"
+    def fill_treeview(self, widget):
+        query = self.query_var.get()
         try:
-            conn.cursor().execute(query)
+            assert query, "Please enter a query!"
+            query = self.get_query(query)
+            widget.delete(*widget.get_children())
+            assert not query.lower().endswith('where '), "Data not found!"
+            files = self.conn.cursor().execute(query).fetchall()
+            for index, row in enumerate(files):
+                filename, size, creation, modification = row
+                utc_create = datetime.datetime.fromtimestamp(creation).strftime(DATE_TIME_FORMAT)
+                utc_mod = datetime.datetime.fromtimestamp(modification).strftime(DATE_TIME_FORMAT)
+                widget.insert("", "end", values=(filename, int(size), utc_create, utc_mod))
+        except AssertionError as error:
+            self.message(error.args[0], "Error")
+        except Exception as err:
+            LOGGER.error(err)
+
+    def open_target(self, event='file', widget=None):
+        try:
+            cur_item = widget.focus()
+            cur_text = widget.item(cur_item)['values'][0]
+            target = cur_text if event == 'file' else str(Path(cur_text).parent)
+            os.startfile(target)
         except Exception as error:
-            LOGGER.warning(error)
+            self.message(message=error.args[0])
+
+    def folder_select(self, folder_list):
+        answer = filedialog.askdirectory(parent=self, initialdir=os.getcwd(), title="Please select a folder:")
+        folder_list.insert("end", answer)
+
+    def destroy_active_frames(self):
+        if self.active_frames:
+            for frame in self.active_frames: frame.destroy()
+
+    def config_page(self):
+        self.title('Configure Indexing')
+        self.destroy_active_frames()
+        file_frame = ttk.Frame(self)
+        file_frame.columnconfigure(0, weight=1)
+        file_frame.columnconfigure(1, weight=15)
+        file_frame.columnconfigure(2, weight=1)
+        label = ttk.Label(file_frame, text='Folder: ')
+        label.grid(column=0, row=0, sticky=tk.W)
+        file_entry = ttk.Entry(file_frame, textvariable=self.query_var, width=131, style='TEntry')
+        file_entry.focus()
+        file_entry.grid(column=1, row=0, sticky=tk.EW)
+        search_button = ttk.Button(file_frame, text='Select')
+        file_frame.grid(column=0, row=0, sticky=tk.NSEW, padx=10, pady=(10, 10))
+        radio_frame = ttk.LabelFrame(self, text='Parameters')
+        radio_frame.columnconfigure(0, weight=1)
+        radio_frame.columnconfigure(1, weight=1)
+        radio_frame.columnconfigure(2, weight=1)
+        radio_frame.columnconfigure(3, weight=1)
+        radio_frame.columnconfigure(4, weight=1)
+        radio_frame.columnconfigure(5, weight=1)
+        radio_frame.columnconfigure(6, weight=1)
+        grid_params = dict(row=2, sticky=tk.W)
+        ttk.Label(radio_frame, text='Select Indexer: ').grid(column=0, **grid_params)
+        filename_indexer = ttk.Radiobutton(radio_frame, text='File Indexer', variable=self.indexer_type, value=1)
+        filename_indexer.grid(column=1, **grid_params)
+        fulltext_indexer = ttk.Radiobutton(radio_frame, text='Full Text', variable=self.indexer_type, value=2)
+        fulltext_indexer.grid(column=2, **grid_params)
+        image_objects_indexer = ttk.Radiobutton(radio_frame, text='Image Recognition', variable=self.indexer_type,
+                                                value=3)
+        image_objects_indexer.grid(column=3, **grid_params)
+        audio_search_indexer = ttk.Radiobutton(radio_frame, text='Audio To Text', variable=self.indexer_type, value=4)
+        audio_search_indexer.grid(column=4, **grid_params)
+
+        all_indexer = ttk.Radiobutton(radio_frame, text='All Indexer', variable=self.indexer_type, value=5)
+        all_indexer.grid(column=5, **grid_params)
+        radio_frame.grid(column=0, row=1, sticky=tk.EW, padx=10, ipady=5)
+
+        list_frame = ttk.Frame(self)
+        list_frame.columnconfigure(0, weight=17)
+        list_box = tk.Listbox(list_frame, width=68, height=22)
+        list_box.grid(row=0, column=0, sticky=tk.NSEW)
+        search_button.config(command=lambda widget=list_box: self.folder_select(folder_list=widget))
+        search_button.grid(column=2, row=0, sticky=tk.E)
+
+        list_frame.grid(column=0, row=3, sticky=tk.NSEW, padx=10, pady=(0, 10))
+
+        action_frame = ttk.Frame(self)
+        action_frame.columnconfigure(0, weight=13)
+        action_frame.columnconfigure(1, weight=1)
+        action_frame.columnconfigure(2, weight=1)
+        action_frame.columnconfigure(3, weight=1)
+        action_frame.columnconfigure(4, weight=1)
+        grid_params = dict(row=0, sticky=tk.E)
+        delete_button = ttk.Button(action_frame, text='Delete', width=15)
+        delete_button.config(command=lambda _widget=list_box: self.remove_item(widget=_widget))
+        delete_button.grid(column=1, **grid_params)
+        save_button = ttk.Button(action_frame, text='Save', width=15)
+        save_button.config(command=lambda _widget=list_box: self.save_config(widget=_widget))
+        save_button.grid(column=2, **grid_params)
+        indexer_button = ttk.Button(action_frame, text='Start Indexing', width=15)
+        indexer_button.config(command=self.start_indexing)
+        indexer_button.grid(column=3, **grid_params)
+        stop_indexer_button = ttk.Button(action_frame, text='Stop Indexing')
+        stop_indexer_button.config(command=self.stop_indexing)
+        stop_indexer_button.grid(column=4, **grid_params)
+        action_frame.grid(column=0, row=4, sticky=tk.NSEW, padx=10, pady=(0, 10), ipady=5)
+
+        self.read_config(list_box)
+        self.active_frames = (file_frame, radio_frame, list_frame, action_frame)
+
+    def home_page(self):
+        self.title('AH Disk Search')
+        self.destroy_active_frames()
+        self.search_type = tk.IntVar()
+        query_frame = ttk.Frame(self)
+        query_frame.columnconfigure(0, weight=1)
+        query_frame.columnconfigure(1, weight=17)
+        query_frame.columnconfigure(2, weight=1)
+        query_frame.columnconfigure(3, weight=2)
+        label = ttk.Label(query_frame, text='Search: ')
+        label.grid(column=0, row=0, sticky=tk.W)
+        self.query_var.set('')
+        query_entry = ttk.Entry(query_frame, textvariable=self.query_var, width=114, style='TEntry')
+        query_entry.focus()
+        query_entry.grid(column=1, row=0, sticky=tk.EW)
+
+        search_button = ttk.Button(query_frame, text='Search')
+        search_button.grid(column=2, row=0, sticky=tk.W)
+
+        toggle_preview = ttk.Button(query_frame, text='Toggle Preview')
+        toggle_preview.grid(column=3, row=0, sticky=tk.E, padx=2)
+
+        query_frame.grid(column=0, row=0, sticky=tk.EW, padx=10, pady=(10, 10))
+
+        radio_frame = ttk.LabelFrame(self, text='Parameters')
+        radio_frame.columnconfigure(0, weight=1)
+        radio_frame.columnconfigure(1, weight=1)
+        radio_frame.columnconfigure(2, weight=1)
+        radio_frame.columnconfigure(3, weight=1)
+        radio_frame.columnconfigure(4, weight=1)
+        radio_frame.columnconfigure(5, weight=1)
+        grid_params = dict(row=2, sticky=tk.W)
+        ttk.Label(radio_frame, text='Search type: ').grid(column=0, **grid_params)
+        self.search_type.set(1)
+        filename = ttk.Radiobutton(radio_frame, text='Filename', variable=self.search_type, value=1)
+        filename.grid(column=1, **grid_params)
+        fulltext = ttk.Radiobutton(radio_frame, text='Full Text', variable=self.search_type, value=2)
+        fulltext.grid(column=2, **grid_params)
+        image_objects = ttk.Radiobutton(radio_frame, text='Image Objects', variable=self.search_type, value=3)
+        image_objects.grid(column=3, **grid_params)
+        audio_search = ttk.Radiobutton(radio_frame, text='Audio Search', variable=self.search_type, value=4)
+        audio_search.grid(column=4, **grid_params)
+        radio_frame.grid(column=0, row=1, sticky=tk.NSEW, padx=10, ipady=5)
+
+        preview_list_frame = ttk.Frame(self)
+        preview_list_frame.columnconfigure(0, weight=200)
+        preview_list_frame.columnconfigure(2, weight=4)
+
+        self.dock_viewer = DocViewer(preview_list_frame, width=100, scrollbars='horizontal')
+        self.dock_viewer.fit_page(2.9)
+        self.dock_viewer.grid(row=0, column=2, sticky=tk.NSEW)
+
+        params = dict(columns=self.list_box_cols, show='headings', height=19)
+        list_box = ttk.Treeview(preview_list_frame, **params)
+        scrollbar = ttk.Scrollbar(preview_list_frame, orient="vertical", command=list_box.yview)
+        scrollbar.grid(row=0, column=1, sticky=tk.NS)
+        list_box.configure(yscrollcommand=scrollbar.set)
+
+        def treeview_sort_column(col, reverse):
+            items = [(list_box.set(k, col), k) for k in list_box.get_children('')]
+            items.sort(reverse=reverse)
+            for index, (val, k) in enumerate(items):
+                list_box.move(k, '', index)
+            list_box.heading(col, text=col, command=lambda _col=col: treeview_sort_column(_col, not reverse))
+
+        for col in self.list_box_cols:
+            list_box.column(col, minwidth=60, width=100)
+            list_box.heading(col, text=col, command=lambda _col=col: treeview_sort_column(_col, False))
+
+        list_box.column('Filename', width=390)
+        list_box.column('Size', width=90)
+        list_box.column('Created', width=115)
+        list_box.column('Modified', width=115)
+        list_box.bind("<<TreeviewSelect>>", lambda event, widget=list_box: self.file_preview(widget=widget))
+        list_box.grid(row=0, column=0, sticky=tk.NSEW)
+        search_button.config(command=lambda widget=list_box: self.fill_treeview(widget=widget))
+
+        preview_list_frame.grid(column=0, row=4, sticky=tk.NSEW, padx=10, pady=(0, 10))
+        list_box.bind("<Double-1>", lambda event, _event='file', widget=list_box: self.open_target(_event, widget))
+        self.bind('<Return>', lambda event, widget=list_box: self.fill_treeview(widget=widget))
+        toggle_preview.config(command=lambda widget=list_box: self.show_hide_preview(widget=widget))
+        self.active_frames = (query_frame, radio_frame, preview_list_frame)
 
 
 if __name__ == '__main__':
-    search = tk.Tk()
-    imgobj = tk.IntVar()
-    imgobj.set(2)
-    style_theme = "cosmo"
-    style = Style(theme=style_theme)
-    highlight_color = '#64ed71'
-    style.configure(
-        'TButton',
-        borderwidth=3,
-    )
-    style.map('primary.TButton', bordercolor=[('focus', highlight_color)])
-    style.map('secondary.TButton', bordercolor=[('focus', highlight_color)])
-    style.map('warning.TButton', bordercolor=[('focus', highlight_color)])
-    style.map('BW.TRadiobutton', foreground=[('focus', highlight_color)])
-    style.map('Treeview', bordercolor=[('focus', highlight_color)])
-
-    fts = FullTextSearch()
-
-    conn = create_connection()
-    create_tables()
-    search.style = style.master
-
-    search.geometry("1025x510")
-    # search.eval('tk::PlaceWindow . center')
-    icon_file = os.path.join(BASE_DIR, 'dist', 'ahsearch.ico')
-    search.iconbitmap(icon_file)
-    search.resizable(False, False)
-    search.title("AH Desktop Search")
-
-    search.columnconfigure(0, weight=1)
-    search.columnconfigure(1, weight=10)
-    search.columnconfigure(2, weight=1)
-    search.columnconfigure(3, weight=1)
-    search.columnconfigure(4, weight=1)
-    search.bind('<Return>', show)
-    search.bind('<Control-x>', lambda event: search.destroy())
-    search.bind('<Control-c>', lambda event: grab_full_path())
-    search.bind('<Control-s>', lambda event: iconfig())
-
-    params = dict(width=1, text=" ", font=("Arial", 10))
-    # emptyLabel2 = tk.Label(search, **params).grid(row=1, columnspan=6, sticky=tk.EW)
-    params['text'] = "Query: "
-    params['font'] = ("Arial", 10, "bold")
-    search_label = tk.Label(search, **params).grid(row=2, column=0, sticky=tk.EW)
-    search_value = tk.StringVar()
-    search_input = tk.Entry(search, width=1, textvariable=search_value, highlightcolor=highlight_color)
-    search_input.grid(row=2, column=1, sticky=tk.EW, ipady=4, padx=(5, 0))
-    search.bind('<Control-q>', lambda event: search_input.focus())
-    search_input.focus()
-
-    params = dict(text="Search", width=1, command=show, style='primary.TButton')
-    search_button = ttk.Button(search, **params).grid(row=2, column=2, sticky=tk.EW, padx=(10, 1))
-    params = dict(text="Config", width=1, command=iconfig, style='primary.TButton')
-    config_button = ttk.Button(search, **params).grid(row=2, column=3, sticky=tk.EW, padx=(1, 1))
-    params = dict(text="Exit", width=1, command=exit, style='secondary.TButton')
-    exit_button = ttk.Button(search, **params).grid(row=2, column=4, sticky=tk.EW, padx=(1, 1))
-
-    lf = ttk.Labelframe(search, text='Parameters', padding=(5, 5, 5, 5))
-    lf.grid(row=3, column=0, columnspan=6, sticky=tk.EW)
-    params = dict(style='BW.TRadiobutton', variable=imgobj)
-    photo_label = ttk.Label(lf, width=15, text="Search type: ", font=("Arial", 10, "bold")).pack(side="left")
-    photo_button2 = ttk.Radiobutton(lf, width=12, text="Filenames", value=2, **params).pack(side='left')
-    photo_button3 = ttk.Radiobutton(lf, width=15, text="Full Text", value=3, **params).pack(side='left')
-    photo_button1 = ttk.Radiobutton(lf, width=15, text="Image Objects", value=1, **params).pack(side='left')
-    photo_button4 = ttk.Radiobutton(lf, width=15, text="Audio/Video to Text", value=4, **params).pack(side='left')
-
-    menu = tk.Menu(search, tearoff=0)
-    menu.add_command(label="Copy full path", command=grab_full_path)
-    menu.add_command(label="Copy folder location", command=grab_folder_path)
-    menu.add_separator()
-    menu.add_command(label="Open file", command=load_file)
-    menu.add_command(label="Open folder", command=open_in_explorer)
-
-    style_cosomo_treeview = "cosmo.Treeview"
-    # create Treeview with 3 columns
-    cols = ('Filename', 'Size', 'Created', 'Modified')
-    style.configure(style_cosomo_treeview, highlightthickness=0, bd=0,
-                    font=('Calibri', 8))  # Modify the font of the body
-    style.configure(style_cosomo_treeview + ".Heading", font=('Calibri', 10))  # Modify the font of the headings
-    list_box = ttk.Treeview(search, style=style_cosomo_treeview, columns=cols, show='headings', height=20)
-    vsb = ttk.Scrollbar(orient="vertical", command=list_box.yview)
-    vsb.grid(row=4, column=5, sticky='ns')
-
-    list_box.configure(yscrollcommand=vsb.set)
-
-    for col in cols:
-        list_box.column(col, minwidth=150, width=250)
-        list_box.heading(col, text=col, command=lambda _col=col: treeview_sort_column(list_box, _col, False))
-
-    list_box.column('Filename', minwidth=250, width=650)
-    list_box.column('Size', minwidth=50, width=150)
-    list_box.column('Created', minwidth=100, width=100)
-    list_box.column('Modified', minwidth=100, width=100)
-    list_box.grid(row=4, column=0, columnspan=5)
-
-    list_box.bind("<Button-3>", do_popup)
-    list_box.bind("<Double-1>", double_click_open)
-    list_box.bind("<Return>", double_click_open)
-
-    search.mainloop()
+    app = App()
+    app.mainloop()

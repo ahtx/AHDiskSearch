@@ -12,13 +12,6 @@ import winerror
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from dist.shared import BASE_DIR, create_connection, LOGGER
 
-# Disallowing Multiple Instance
-mutex = win32event.CreateMutex(None, 1, 'mutex_AHDiskIndexer')
-if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
-    mutex = None
-    LOGGER.warning("AHDiskIndexer is already running.")
-    sys.exit(0)
-
 
 def create_table(conn):
     query = "CREATE TABLE files (filename TEXT PRIMARY KEY, size BIGINT, creation DATETIME, modification DATETIME);"
@@ -84,6 +77,7 @@ def save_paths(path, conn):
 
 
 def start():
+    t1_start = perf_counter()
     LOGGER.warning("Starting indexing process...")
     try:
         paths = read_path_config()
@@ -95,10 +89,15 @@ def start():
             save_paths(path, conn)
     except Exception as error:
         LOGGER.warning(error)
+    t2_stop = perf_counter()
+    LOGGER.warning("Time elapsed {} seconds".format(t2_stop - t1_start))
 
 
 if __name__ == '__main__':
-    t1_start = perf_counter()
+    # Disallowing Multiple Instance
+    mutex = win32event.CreateMutex(None, 1, 'mutex_AHDiskIndexer')
+    if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
+        mutex = None
+        LOGGER.warning("AHDiskIndexer is already running.")
+        sys.exit(0)
     start()
-    t1_stop = perf_counter()
-    LOGGER.warning("Time elapsed {} seconds".format(t1_stop - t1_start))

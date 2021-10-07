@@ -7,18 +7,9 @@ from time import perf_counter
 import win32api
 import win32event
 import winerror
-from imageai.Detection import ObjectDetection
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from dist.shared import create_connection, BASE_DIR, LOGGER
-
-
-# Disallowing Multiple Instance
-mutex = win32event.CreateMutex(None, 1, 'mutex_AHObjectDetector')
-if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
-    mutex = None
-    LOGGER.warning("AHObjectDetector is already running")
-    sys.exit(0)
 
 
 def create_table(conn):
@@ -44,7 +35,23 @@ def insert_entry(conn, v1, v2, v3):
     conn.commit()
 
 
-def start(conn):
+def start():
+    conn = create_connection()
+    try:
+        assert conn, 'Database connection error'
+        create_table(conn)
+        model_file = os.path.join(BASE_DIR, 'dist', 'resnet50_coco_best_v2.1.0.h5')
+        assert os.path.exists(model_file), 'resnet50_coco_best_v2.1.0.h5 is required'
+    except Exception as err:
+        LOGGER.error(err)
+        sys.exit()
+    LOGGER.warning("Starting object recognition process...")
+    t1_start = perf_counter()
+    from imageai.Detection import ObjectDetection
+    detector = ObjectDetection()
+    detector.setModelTypeAsRetinaNet()
+    detector.setModelPath(model_file)
+    detector.loadModel()
     query = "SELECT filename FROM files WHERE filename LIKE '%.jpg' "
     try:
         results = list(itertools.chain.from_iterable(conn.cursor().execute(query).fetchall()))
@@ -67,24 +74,15 @@ def start(conn):
                 LOGGER.error(err)
     except Exception as err:
         LOGGER.error(err)
+    t2_stop = perf_counter()
+    LOGGER.info("Time elapsed {} seconds".format(t2_stop - t1_start))
 
 
 if __name__ == '__main__':
-    conn = create_connection()
-    try:
-        assert conn, 'Database connection error'
-        create_table(conn)
-        model_file = os.path.join(BASE_DIR, 'dist', 'resnet50_coco_best_v2.1.0.h5')
-        assert os.path.exists(model_file), 'resnet50_coco_best_v2.1.0.h5 is required'
-    except Exception as err:
-        LOGGER.error(err)
-        sys.exit()
-    LOGGER.warning("Starting object recognition process...")
-    t1_start = perf_counter()
-    detector = ObjectDetection()
-    detector.setModelTypeAsRetinaNet()
-    detector.setModelPath(model_file)
-    detector.loadModel()
-    start(conn)
-    t1_stop = perf_counter()
-    LOGGER.info("Time elapsed {} seconds".format(t1_stop - t1_start))
+    # Disallowing Multiple Instance
+    mutex = win32event.CreateMutex(None, 1, 'mutex_AHObjectDetector')
+    if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
+        mutex = None
+        LOGGER.warning("AHObjectDetector is already running")
+        sys.exit(0)
+    start()
