@@ -178,6 +178,7 @@ class App(tk.Tk, FullTextSearch):
             for frame in self.active_frames: frame.destroy()
 
     def config_page(self):
+        self.title('Configure Indexing')
         self.destroy_active_frames()
         self.indexer_type = tk.IntVar()
         file_frame = ttk.Frame(self)
@@ -215,7 +216,7 @@ class App(tk.Tk, FullTextSearch):
 
         list_frame = ttk.Frame(self)
         list_frame.columnconfigure(0, weight=17)
-        list_box = tk.Listbox(list_frame, width=68, height=23)
+        list_box = tk.Listbox(list_frame, width=68, height=22)
         list_box.grid(row=0, column=0, sticky=tk.NSEW)
         search_button.config(command=lambda widget=list_box: self.folder_select(folder_list=widget))
         search_button.grid(column=2, row=0, sticky=tk.E)
@@ -247,6 +248,7 @@ class App(tk.Tk, FullTextSearch):
         self.active_frames = (file_frame, radio_frame, list_frame, action_frame)
 
     def home_page(self):
+        self.title('AH Disk Search')
         self.destroy_active_frames()
         self.search_type = tk.IntVar()
         query_frame = ttk.Frame(self)
@@ -287,7 +289,7 @@ class App(tk.Tk, FullTextSearch):
         preview_list_frame.columnconfigure(2, weight=4)
         self.dock_viewer = DocViewer(preview_list_frame, width=100)
         self.dock_viewer.grid(row=0, column=2, sticky=tk.NSEW)
-        params = dict(columns=self.list_box_cols, show='headings', height=20)
+        params = dict(columns=self.list_box_cols, show='headings', height=19)
         list_box = ttk.Treeview(preview_list_frame, **params)
         scrollbar = ttk.Scrollbar(preview_list_frame, orient="vertical", command=list_box.yview)
         scrollbar.grid(row=0, column=1, sticky=tk.NS)
