@@ -8,7 +8,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import ttk, messagebox, filedialog
 
-import pandas
+import keyboard
 import win32api
 import win32event
 import winerror
@@ -18,7 +18,6 @@ from ttkbootstrap import Style
 
 from AHFTSearch import FullTextSearch
 
-# multiprocessing.freeze_support()
 # sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from dist import AHDiskIndexer, audio_to_text, AHFullTextIndexer, AHObjectDetector
 from dist.shared import LOGGER, create_connection, get_sub_string, DATE_TIME_FORMAT, BASE_DIR
@@ -34,11 +33,13 @@ class ProcessAsync(multiprocessing.Process):
 
 
 class App(tk.Tk, FullTextSearch):
+    hotkey = "ctrl+shift+f"
     list_box_cols = ('Filename', 'Size', 'Created', 'Modified')
     indexers = (AHDiskIndexer.start, AHFullTextIndexer.start, AHObjectDetector.start, audio_to_text.start)
     indexer_process: ProcessAsync
 
     def __init__(self):
+        keyboard.add_hotkey(self.hotkey, self.find_window_movetop, args=())
         super(App, self).__init__()
         self.conn = create_connection()
         self.config_file = os.path.join(BASE_DIR, 'dist', 'ahsearch.config')
@@ -83,6 +84,10 @@ class App(tk.Tk, FullTextSearch):
         self.indexer_type = tk.IntVar()
         self.indexer_type.set(1)
         self.home_page()
+
+    def find_window_movetop(self):
+        self.wm_deiconify()
+
 
     def start_progress(self):
         self.progress_frame.tkraise()
@@ -235,13 +240,14 @@ class App(tk.Tk, FullTextSearch):
             widget.delete(*widget.get_children())
             assert not query.lower().endswith('where '), "Data not found!"
             files = self.conn.cursor().execute(query).fetchall()
+            assert len(files) > 0, f"'{self.query_var.get()}' related data not found."
             for index, row in enumerate(files):
                 filename, size, creation, modification = row
                 utc_create = self.epoch_to_date(creation)
                 utc_mod = self.epoch_to_date(modification)
                 widget.insert("", "end", values=(filename, int(size), utc_create, utc_mod))
         except AssertionError as error:
-            self.message(error.args[0], "Error")
+            self.message(error.args[0], "Info")
         except Exception as err:
             LOGGER.error(err)
 
@@ -392,6 +398,7 @@ class App(tk.Tk, FullTextSearch):
 
         params = dict(columns=self.list_box_cols, show='headings', height=19)
         list_box = ttk.Treeview(preview_list_frame, **params)
+        list_box.grid(row=0, column=0, sticky=tk.NSEW)
         scrollbar = ttk.Scrollbar(preview_list_frame, orient="vertical", command=list_box.yview)
         scrollbar.grid(row=0, column=1, sticky=tk.NS)
         list_box.configure(yscrollcommand=scrollbar.set)
@@ -412,7 +419,6 @@ class App(tk.Tk, FullTextSearch):
         list_box.column('Created', width=115)
         list_box.column('Modified', width=115)
         list_box.bind("<<TreeviewSelect>>", lambda event, widget=list_box: self.file_preview(widget=widget))
-        list_box.grid(row=0, column=0, sticky=tk.NSEW)
         search_button.config(command=lambda widget=list_box: self.fill_treeview(widget=widget))
 
         preview_list_frame.grid(column=0, row=4, sticky=tk.NSEW, padx=10, pady=(0, 10))
@@ -423,6 +429,7 @@ class App(tk.Tk, FullTextSearch):
 
 
 if __name__ == '__main__':
+    multiprocessing.freeze_support()
     # Disallowing Multiple Instance
     mutex = win32event.CreateMutex(None, 1, 'mutex_AHDiskSearch')
     if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
