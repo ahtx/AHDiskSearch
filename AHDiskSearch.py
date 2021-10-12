@@ -1,4 +1,6 @@
 import datetime
+import functools
+import json
 import multiprocessing
 import os
 import sys
@@ -6,13 +8,17 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import ttk, messagebox, filedialog
 
+import keyboard
+import win32api
+import win32event
+import winerror
+from TextSpitter import TextSpitter
 from tkdocviewer import DocViewer
 from ttkbootstrap import Style
 
 from AHFTSearch import FullTextSearch
 
-# multiprocessing.freeze_support()
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+# sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from dist import AHDiskIndexer, audio_to_text, AHFullTextIndexer, AHObjectDetector
 from dist.shared import LOGGER, create_connection, get_sub_string, DATE_TIME_FORMAT, BASE_DIR
 
@@ -27,11 +33,13 @@ class ProcessAsync(multiprocessing.Process):
 
 
 class App(tk.Tk, FullTextSearch):
+    hotkey = "ctrl+shift+f"
     list_box_cols = ('Filename', 'Size', 'Created', 'Modified')
     indexers = (AHDiskIndexer.start, AHFullTextIndexer.start, AHObjectDetector.start, audio_to_text.start)
     indexer_process: ProcessAsync
 
     def __init__(self):
+        keyboard.add_hotkey(self.hotkey, self.find_window_movetop, args=())
         super(App, self).__init__()
         self.conn = create_connection()
         self.config_file = os.path.join(BASE_DIR, 'dist', 'ahsearch.config')
@@ -49,7 +57,7 @@ class App(tk.Tk, FullTextSearch):
         style.map('Treeview', bordercolor=[('focus', highlight_color)])
         self.resizable(0, 0)
         self.query_var = tk.StringVar()
-        self.dock_viewer = None
+        self.dock_viewer: DocViewer
         menubar = tk.Menu(self)
         self.config(menu=menubar)
         menubar.add_command(label='Home', command=self.home_page)
@@ -77,6 +85,10 @@ class App(tk.Tk, FullTextSearch):
         self.indexer_type.set(1)
         self.home_page()
 
+    def find_window_movetop(self):
+        self.wm_deiconify()
+
+
     def start_progress(self):
         self.progress_frame.tkraise()
         self.pb.start(5)
@@ -97,7 +109,7 @@ class App(tk.Tk, FullTextSearch):
         self.monitor(current_indexer)
 
     def stop_indexing(self):
-        if self.indexer_process and self.indexer_process.is_alive():
+        if hasattr(self, 'indexer_process') and self.indexer_process and self.indexer_process.is_alive():
             self.indexer_process.terminate()
         self.stop_progress()
 
@@ -113,30 +125,66 @@ class App(tk.Tk, FullTextSearch):
         else:
             self.stop_progress()
 
-    def read_config(self, widget):
-        file = open(self.config_file, "r")
-        for line in file.readlines():
+    def write_widget(self, widget, data):
+        for line in data:
             line = line.strip("\n")
             widget.insert("end", line)
-        file.close()
 
-    def save_config(self, widget):
+    def read_data(self):
+        with open(self.config_file) as open_file:
+            try:
+                data = json.load(open_file)
+            except json.decoder.JSONDecodeError:
+                data = {}
+        return data
+
+    def write_config(self, data):
+        with open(self.config_file, 'w') as out_file:
+            out_file.write(data)
+
+    def read_config(self, included, excluded):
+        data = self.read_data()
+        self.write_widget(included, data.get('included', []))
+        self.write_widget(excluded, data.get('excluded', []))
+
+    def save_config(self, included, excluded):
         self.start_progress()
-        file = open(self.config_file, "w")
-        for i in range(widget.size()):
-            file.write(widget.get(i))
-            file.write("\n")
-        file.close()
+        included_items = list(included.get(i) for i in range(included.size()))
+        excluded_items = list(excluded.get(i) for i in range(excluded.size()))
+        data = json.dumps(dict(included=included_items, excluded=excluded_items), indent=4)
+        self.write_config(data)
         self.stop_progress()
 
-    def remove_item(self, widget):
-        for i in widget.curselection():
-            widget.delete(i)
+    def remove_and_get(self, i, widget):
+        item = widget.get(i)
+        widget.delete(i)
+        return item
+
+    def remove_item(self, included, excluded):
+        included_removed = set(map(functools.partial(self.remove_and_get, widget=included), included.curselection()))
+        excluded_removed = set(map(functools.partial(self.remove_and_get, widget=excluded), excluded.curselection()))
+        data = self.read_data()
+        included_items = list(set(set(data.get('included', [])) - included_removed))
+        excluded_items = list(set(set(data.get('excluded', [])) - excluded_removed))
+        data = json.dumps(dict(included=included_items, excluded=excluded_items), indent=4)
+        self.write_config(data)
 
     def file_preview(self, widget=None):
         cur_item = widget.focus()
         file = widget.item(cur_item)['values'][0]
-        self.dock_viewer.display_file(file, pages=1)
+        base, ext = map(str.lower, os.path.splitext(file))
+        if ext in ('.pdf', '.docx',):
+            self.dock_viewer.display_text(TextSpitter(file)[0:500] + '...')
+        elif self.dock_viewer.can_display(file):
+            self.dock_viewer.display_file(file, pages=1)
+        else:
+            file_stats = os.stat(file)
+            message = f"File: {file}\n"
+            message += "##############################\n"
+            message += f"Size: {file_stats.st_size}\n"
+            message += f"Creation: {self.epoch_to_date(file_stats.st_ctime)}\n"
+            message += f"Modification: {self.epoch_to_date(file_stats.st_mtime)}"
+            self.dock_viewer.display_text(message)
 
     def show_hide_preview(self, widget=None):
         self.show_preview = False if self.show_preview else True
@@ -153,6 +201,9 @@ class App(tk.Tk, FullTextSearch):
             widget.column('Created', width=160)
             widget.column('Modified', width=160)
         widget.update()
+
+    def epoch_to_date(self, epoch_time):
+        return datetime.datetime.fromtimestamp(epoch_time).strftime(DATE_TIME_FORMAT)
 
     def message(self, message, name="Error"):
         methods = dict(Error=messagebox.showerror, Info=messagebox.showinfo, Warning=messagebox.showwarning)
@@ -189,13 +240,14 @@ class App(tk.Tk, FullTextSearch):
             widget.delete(*widget.get_children())
             assert not query.lower().endswith('where '), "Data not found!"
             files = self.conn.cursor().execute(query).fetchall()
+            assert len(files) > 0, f"'{self.query_var.get()}' related data not found."
             for index, row in enumerate(files):
                 filename, size, creation, modification = row
-                utc_create = datetime.datetime.fromtimestamp(creation).strftime(DATE_TIME_FORMAT)
-                utc_mod = datetime.datetime.fromtimestamp(modification).strftime(DATE_TIME_FORMAT)
+                utc_create = self.epoch_to_date(creation)
+                utc_mod = self.epoch_to_date(modification)
                 widget.insert("", "end", values=(filename, int(size), utc_create, utc_mod))
         except AssertionError as error:
-            self.message(error.args[0], "Error")
+            self.message(error.args[0], "Info")
         except Exception as err:
             LOGGER.error(err)
 
@@ -209,8 +261,8 @@ class App(tk.Tk, FullTextSearch):
             self.message(message=error.args[0])
 
     def folder_select(self, folder_list):
-        answer = filedialog.askdirectory(parent=self, initialdir=os.getcwd(), title="Please select a folder:")
-        folder_list.insert("end", answer)
+        answer = filedialog.askdirectory(parent=self, initialdir=os.environ['HOMEPATH'], title="Please select a folder:")
+        folder_list.insert("end", str(Path(answer).absolute()))
 
     def destroy_active_frames(self):
         if self.active_frames:
@@ -220,15 +272,13 @@ class App(tk.Tk, FullTextSearch):
         self.title('Configure Indexing')
         self.destroy_active_frames()
         file_frame = ttk.Frame(self)
-        file_frame.columnconfigure(0, weight=1)
-        file_frame.columnconfigure(1, weight=15)
-        file_frame.columnconfigure(2, weight=1)
-        label = ttk.Label(file_frame, text='Folder: ')
-        label.grid(column=0, row=0, sticky=tk.W)
-        file_entry = ttk.Entry(file_frame, textvariable=self.query_var, width=131, style='TEntry')
-        file_entry.focus()
-        file_entry.grid(column=1, row=0, sticky=tk.EW)
-        search_button = ttk.Button(file_frame, text='Select')
+        file_frame.columnconfigure(0, weight=16)
+        file_frame.columnconfigure(1, weight=2)
+        file_frame.columnconfigure(2, weight=16)
+        search_button = ttk.Button(file_frame, text='Select To Include', width=71)
+        search_button.grid(column=0, row=0, sticky=tk.W, padx=(0, 5))
+        exclude_button = ttk.Button(file_frame, text="Select To Exclude", width=71, style='secondary.TButton')
+        exclude_button.grid(column=2, row=0, sticky=tk.E)
         file_frame.grid(column=0, row=0, sticky=tk.NSEW, padx=10, pady=(10, 10))
         radio_frame = ttk.LabelFrame(self, text='Parameters')
         radio_frame.columnconfigure(0, weight=1)
@@ -255,13 +305,18 @@ class App(tk.Tk, FullTextSearch):
         radio_frame.grid(column=0, row=1, sticky=tk.EW, padx=10, ipady=5)
 
         list_frame = ttk.Frame(self)
-        list_frame.columnconfigure(0, weight=17)
-        list_box = tk.Listbox(list_frame, width=68, height=22)
-        list_box.grid(row=0, column=0, sticky=tk.NSEW)
+        list_frame.columnconfigure(0, weight=16)
+        list_frame.columnconfigure(1, weight=2)
+        list_frame.columnconfigure(2, weight=16)
+        ttk.Label(list_frame, text="Included Folders").grid(row=0, column=0, sticky=tk.W)
+        list_box = tk.Listbox(list_frame, width=70, height=21, borderwidth=0, selectmode='multiple')
+        list_box.grid(row=1, column=0, sticky=tk.EW)
         search_button.config(command=lambda widget=list_box: self.folder_select(folder_list=widget))
-        search_button.grid(column=2, row=0, sticky=tk.E)
-
         list_frame.grid(column=0, row=3, sticky=tk.NSEW, padx=10, pady=(0, 10))
+        ttk.Label(list_frame, text="Excluded Folders").grid(row=0, column=2, sticky=tk.W)
+        list_box_excluded = tk.Listbox(list_frame, width=70, height=21, borderwidth=0, selectmode='multiple')
+        exclude_button.config(command=lambda widget=list_box_excluded: self.folder_select(folder_list=widget))
+        list_box_excluded.grid(row=1, column=2, sticky=tk.EW)
 
         action_frame = ttk.Frame(self)
         action_frame.columnconfigure(0, weight=13)
@@ -270,21 +325,23 @@ class App(tk.Tk, FullTextSearch):
         action_frame.columnconfigure(3, weight=1)
         action_frame.columnconfigure(4, weight=1)
         grid_params = dict(row=0, sticky=tk.E)
-        delete_button = ttk.Button(action_frame, text='Delete', width=15)
-        delete_button.config(command=lambda _widget=list_box: self.remove_item(widget=_widget))
+        delete_button = ttk.Button(action_frame, text='Delete', width=15, style='danger.TButton')
+        delete_button.config(
+            command=lambda _incl=list_box, _exclu=list_box_excluded: self.remove_item(included=_incl, excluded=_exclu))
         delete_button.grid(column=1, **grid_params)
         save_button = ttk.Button(action_frame, text='Save', width=15)
-        save_button.config(command=lambda _widget=list_box: self.save_config(widget=_widget))
+        save_button.config(
+            command=lambda _incl=list_box, _exclu=list_box_excluded: self.save_config(included=_incl, excluded=_exclu))
         save_button.grid(column=2, **grid_params)
-        indexer_button = ttk.Button(action_frame, text='Start Indexing', width=15)
+        indexer_button = ttk.Button(action_frame, text='Start Indexing', width=15, style='success.TButton')
         indexer_button.config(command=self.start_indexing)
         indexer_button.grid(column=3, **grid_params)
-        stop_indexer_button = ttk.Button(action_frame, text='Stop Indexing')
+        stop_indexer_button = ttk.Button(action_frame, text='Stop Indexing', style='danger.TButton')
         stop_indexer_button.config(command=self.stop_indexing)
         stop_indexer_button.grid(column=4, **grid_params)
         action_frame.grid(column=0, row=4, sticky=tk.NSEW, padx=10, pady=(0, 10), ipady=5)
 
-        self.read_config(list_box)
+        self.read_config(list_box, list_box_excluded)
         self.active_frames = (file_frame, radio_frame, list_frame, action_frame)
 
     def home_page(self):
@@ -306,7 +363,7 @@ class App(tk.Tk, FullTextSearch):
         search_button = ttk.Button(query_frame, text='Search')
         search_button.grid(column=2, row=0, sticky=tk.W)
 
-        toggle_preview = ttk.Button(query_frame, text='Toggle Preview')
+        toggle_preview = ttk.Button(query_frame, text='Toggle Preview', style='warning.TButton')
         toggle_preview.grid(column=3, row=0, sticky=tk.E, padx=2)
 
         query_frame.grid(column=0, row=0, sticky=tk.EW, padx=10, pady=(10, 10))
@@ -341,6 +398,7 @@ class App(tk.Tk, FullTextSearch):
 
         params = dict(columns=self.list_box_cols, show='headings', height=19)
         list_box = ttk.Treeview(preview_list_frame, **params)
+        list_box.grid(row=0, column=0, sticky=tk.NSEW)
         scrollbar = ttk.Scrollbar(preview_list_frame, orient="vertical", command=list_box.yview)
         scrollbar.grid(row=0, column=1, sticky=tk.NS)
         list_box.configure(yscrollcommand=scrollbar.set)
@@ -361,7 +419,6 @@ class App(tk.Tk, FullTextSearch):
         list_box.column('Created', width=115)
         list_box.column('Modified', width=115)
         list_box.bind("<<TreeviewSelect>>", lambda event, widget=list_box: self.file_preview(widget=widget))
-        list_box.grid(row=0, column=0, sticky=tk.NSEW)
         search_button.config(command=lambda widget=list_box: self.fill_treeview(widget=widget))
 
         preview_list_frame.grid(column=0, row=4, sticky=tk.NSEW, padx=10, pady=(0, 10))
@@ -372,5 +429,12 @@ class App(tk.Tk, FullTextSearch):
 
 
 if __name__ == '__main__':
+    multiprocessing.freeze_support()
+    # Disallowing Multiple Instance
+    mutex = win32event.CreateMutex(None, 1, 'mutex_AHDiskSearch')
+    if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
+        mutex = None
+        LOGGER.warning("AHDiskSearch is already running.")
+        sys.exit(0)
     app = App()
     app.mainloop()

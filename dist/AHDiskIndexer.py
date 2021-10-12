@@ -1,4 +1,5 @@
 import glob
+import json
 import os
 import sys
 from pathlib import Path
@@ -23,14 +24,13 @@ def create_table(conn):
 
 
 def read_path_config():
-    paths = None
-    try:
-        config_file = os.path.join(BASE_DIR, 'dist', 'ahsearch.config')
-        with open(config_file, "r") as c_file:
-            paths = c_file.readlines()
-    except Exception as error:
-        pass
-    return paths if paths else []
+    config_file = os.path.join(BASE_DIR, 'dist', 'ahsearch.config')
+    with open(config_file) as open_file:
+        try:
+            data = json.load(open_file)
+        except json.decoder.JSONDecodeError:
+            data = {}
+    return data
 
 
 def entry_exists(conn, filename, size):
@@ -53,15 +53,26 @@ def insert_entry(conn, filename, size, creation, modification):
             conn.commit()
 
 
-def save_paths(path, conn):
+def is_excluded(file, excluded):
+    in_file = False
+    for path in excluded:
+        if path in file:
+            in_file = True
+            break
+    return in_file
+
+
+def save_paths(path, excluded, conn):
     LOGGER.warning(f"Now indexing {path}")
     path = glob.escape(path)
     files = set(glob.iglob(os.path.join(path, "**/*.*"), recursive=True))
     total = len(files)
     for index, filename in enumerate(files):
         LOGGER.warning(f"Indexing {index + 1} out of {total}")
+        filename = str(Path(filename).absolute())
+        if is_excluded(filename, excluded):
+            continue
         try:
-            filename = str(Path(filename).absolute())
             filestat = os.stat(filename)
             filesize = filestat.st_size
             filecreation = filestat.st_ctime
@@ -80,13 +91,13 @@ def start():
     t1_start = perf_counter()
     LOGGER.warning("Starting indexing process...")
     try:
-        paths = read_path_config()
+        data = read_path_config()
         conn = create_connection()
         assert conn, 'No index database found'
         create_table(conn)
-        for path in paths:
+        for path in data.get('included', []):
             path = path.strip("\n")
-            save_paths(path, conn)
+            save_paths(path, data.get('excluded', []), conn)
     except Exception as error:
         LOGGER.warning(error)
     t2_stop = perf_counter()

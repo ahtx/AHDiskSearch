@@ -19,3 +19,4 @@ env
 /dist/ffmpeg.exe
 /dist/ffplay.exe
 /dist/ffprobe.exe
+/app.py
