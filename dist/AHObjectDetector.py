@@ -9,7 +9,7 @@ import win32event
 import winerror
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from dist.shared import create_connection, BASE_DIR, LOGGER
+from dist.shared import create_connection, DIST_DIR, LOGGER
 
 
 def create_table(conn):
@@ -40,7 +40,7 @@ def start():
     try:
         assert conn, 'Database connection error'
         create_table(conn)
-        model_file = os.path.join(BASE_DIR, 'dist', 'resnet50_coco_best_v2.1.0.h5')
+        model_file = os.path.join(DIST_DIR, 'resnet50_coco_best_v2.1.0.h5')
         assert os.path.exists(model_file), 'resnet50_coco_best_v2.1.0.h5 is required'
     except Exception as err:
         LOGGER.error(err)

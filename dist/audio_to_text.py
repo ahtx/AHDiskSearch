@@ -1,3 +1,4 @@
+import glob
 import itertools
 import os
 import sys
@@ -14,7 +15,7 @@ import speech_recognition as sr
 from pydub.silence import split_on_silence
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from dist.shared import BASE_DIR, LOGGER, create_connection
+from dist.shared import DIST_DIR, LOGGER, create_connection
 
 
 def create_table(conn):
@@ -79,7 +80,7 @@ def get_large_audio_transcription(filename, r):
     if file_size < 3:
         whole_text += f"{get_text(filename, r)} "
     else:
-        long_audio = AudioSegment.from_file(filename)
+        long_audio = AudioSegment.from_file(glob.escape(filename))
         audio_chunks = split_on_silence(
             long_audio, min_silence_len=500,
             silence_thresh=long_audio.dBFS - 14,
@@ -100,11 +101,9 @@ def get_large_audio_transcription(filename, r):
 
 def start():
     LOGGER.warning('Starting audio to text conversion')
-    FFMPEG = os.path.join(BASE_DIR, 'dist', 'ffmpeg.exe')
-    FFPROBE = os.path.join(BASE_DIR, 'dist', 'ffprobe.exe')
     VIDEO_CODECS = ('mp4',)
-    AudioSegment.converter = FFMPEG
-    AudioSegment.ffprobe = FFPROBE
+    AudioSegment.converter = os.path.join(DIST_DIR, 'ffmpeg.exe')
+    AudioSegment.ffprobe = os.path.join(DIST_DIR, 'ffprobe.exe')
     # create a speech recognition object
     recognizer = sr.Recognizer()
     t1_start = perf_counter()
@@ -117,14 +116,17 @@ def start():
         total = len(results)
         for i, filename in enumerate(results, start=1):
             LOGGER.warning(f"{filename} indexing {i} out of {total}")
-            if entry_exists(conn, filename):
-                continue
-            audio_file = video_to_audio(filename, VIDEO_CODECS)
-            words = get_large_audio_transcription(audio_file, recognizer).strip()
-            LOGGER.warning(f'WORDS: {words}')
-            if not words:
-                continue
-            insert_entry(conn, filename, words.lower())
+            try:
+                if entry_exists(conn, filename):
+                    continue
+                audio_file = video_to_audio(filename, VIDEO_CODECS)
+                words = get_large_audio_transcription(audio_file, recognizer).strip()
+                LOGGER.warning(f'WORDS: {words}')
+                if not words:
+                    continue
+                insert_entry(conn, filename, words.lower())
+            except Exception as error:
+                LOGGER.warning(error)
     except Exception as err:
         LOGGER.error(err)
     t2_stop = perf_counter()

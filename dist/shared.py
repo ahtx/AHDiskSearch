@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import sqlite3
@@ -5,20 +6,21 @@ from collections import namedtuple
 from functools import reduce
 
 LOGGER = logging.getLogger(__name__)
-BASE_DIR = os.getcwd()
-LOGGER_TIME_FORMAT = '%b-%d-%y %H:%M:%S'
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATE_TIME_FORMAT = "%m/%d/%Y, %H:%M:%S"
 Stats = namedtuple('Stats', ['count', 'size', 'datetime'])
 c_handler = logging.StreamHandler()
-f_handler = logging.FileHandler(os.path.join(BASE_DIR, 'dist', 'error.log'))
+DIST_DIR = os.path.join(BASE_DIR, 'ttkbootstrap')
+if not os.path.exists(DIST_DIR):
+    os.makedirs(DIST_DIR)
+f_handler = logging.FileHandler(os.path.join(DIST_DIR, 'error.log'))
 c_handler.setLevel(logging.WARNING)
 f_handler.setLevel(logging.ERROR)
-log_format = logging.Formatter('%(asctime)s-%(levelname)s - %(message)s', datefmt=LOGGER_TIME_FORMAT)
+log_format = logging.Formatter('%(asctime)s-%(levelname)s - %(message)s', datefmt=DATE_TIME_FORMAT)
 c_handler.setFormatter(log_format)
 f_handler.setFormatter(log_format)
 LOGGER.addHandler(c_handler)
 LOGGER.addHandler(f_handler)
-
-DATE_TIME_FORMAT = "%m/%d/%Y, %H:%M:%S"
 
 
 def get_sub_string(data: list, query_append, prefix='filename = ', like_query=False):
@@ -32,9 +34,23 @@ def get_sub_string(data: list, query_append, prefix='filename = ', like_query=Fa
         return ""
 
 
+def read_path_config():
+    config_file = os.path.join(DIST_DIR, 'ahsearch.config')
+    with open(config_file) as open_file:
+        try:
+            data = json.load(open_file)
+        except json.decoder.JSONDecodeError:
+            data = {}
+    return data
+
+
+def kb_to_mbs(number):
+    return round(number / (1024 * 1024), 2)
+
+
 def create_connection():
     try:
-        db_file = os.path.join(BASE_DIR, 'dist', 'filesystem.db')
+        db_file = os.path.join(DIST_DIR, 'filesystem.db')
         return sqlite3.connect(db_file)
-    except Exception as e:
-        print(e)
+    except Exception as err:
+        LOGGER.error(err)
