@@ -10,7 +10,7 @@ import winerror
 from TextSpitter import TextSpitter
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from dist.shared import create_connection, BASE_DIR, LOGGER, Stats
+from dist.shared import create_connection, DIST_DIR, LOGGER, Stats, read_path_config, kb_to_mbs
 
 
 def dump_pickle(data, pickle_file):
@@ -50,7 +50,7 @@ def update_big_idx(filename, full_text, big_idx):
 
 def start():
     LOGGER.warning("Starting full text indexing process...")
-    pickle_file = os.path.join(BASE_DIR, 'dist', 'fulltext.idx.pkl')
+    pickle_file = os.path.join(DIST_DIR, 'fulltext.idx.pkl')
     t1_start = perf_counter()
     exclude = get_pickled_files(pickle_file)
     query = "SELECT filename FROM files WHERE (filename LIKE '%.txt' OR filename LIKE '%.docx' "
@@ -62,9 +62,12 @@ def start():
         filenames = set(itertools.chain.from_iterable(conn.cursor().execute(query, list(exclude)).fetchall()))
         total = len(filenames)
         for index, filename in enumerate(filenames):
+            file_stats = os.stat(filename)
+            file_size = kb_to_mbs(file_stats.st_size)
+            LOGGER.warning(f"Indexing [{file_size}] {filename}: {index + 1} out of {total}")
+            if file_size > float(read_path_config().get('file_size', 5)): continue
             extension = filename.split('.')[-1]
             if os.path.isfile(filename) and extension in ("txt", "pdf", "docx"):
-                LOGGER.warning(f"Indexing {filename}: {index + 1} out of {total}")
                 try:
                     full_text = TextSpitter(filename)
                 except Exception as err:

@@ -4,7 +4,7 @@ import pickle
 import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from dist.shared import BASE_DIR
+from dist.shared import DIST_DIR
 
 
 class FullTextSearch:
@@ -13,7 +13,7 @@ class FullTextSearch:
 
     def run_query(self, query):
         query = query.lower()
-        pickle_file = os.path.join(BASE_DIR, 'dist', 'fulltext.idx.pkl')
+        pickle_file = os.path.join(DIST_DIR, 'fulltext.idx.pkl')
         with open(pickle_file, 'rb') as p_file:
             result_set = pickle.load(p_file)
             words = query.split(" ")

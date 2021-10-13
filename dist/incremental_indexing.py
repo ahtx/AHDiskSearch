@@ -6,23 +6,12 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileModifiedEvent, FileMovedEvent
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from dist.shared import BASE_DIR, create_connection, LOGGER
-
-
-def read_path_config():
-    paths = None
-    try:
-        config_file = str(Path(os.path.join(BASE_DIR, 'dist', 'ahsearch.config')).absolute())
-        with open(config_file, "r") as c_file:
-            paths = c_file.readlines()
-    except Exception as error:
-        LOGGER.warning(error)
-    return paths if paths else []
+from dist.shared import create_connection, LOGGER, read_path_config
 
 
 def is_in_watch_list(target: str):
     in_watch_list = False
-    for path in read_path_config():
+    for path in read_path_config().get('included', []):
         if target.lower().startswith(path.strip()):
             in_watch_list = True
             break
@@ -121,7 +110,7 @@ class EventHandler(FileSystemEventHandler):
 def start():
     observer = Observer()
     event_handler = EventHandler()
-    for path in read_path_config():
+    for path in read_path_config().get('included', []):
         path = str(Path(path.strip()).absolute())
         observer.schedule(event_handler, path, recursive=True)
     observer.start()

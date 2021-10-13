@@ -11,7 +11,7 @@ import win32event
 import winerror
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from dist.shared import BASE_DIR, create_connection, LOGGER
+from dist.shared import create_connection, LOGGER, read_path_config
 
 
 def create_table(conn):
@@ -21,16 +21,6 @@ def create_table(conn):
         c.execute(query)
     except Error as e:
         LOGGER.warning(e)
-
-
-def read_path_config():
-    config_file = os.path.join(BASE_DIR, 'dist', 'ahsearch.config')
-    with open(config_file) as open_file:
-        try:
-            data = json.load(open_file)
-        except json.decoder.JSONDecodeError:
-            data = {}
-    return data
 
 
 def entry_exists(conn, filename, size):
@@ -89,7 +79,7 @@ def save_paths(path, excluded, conn):
 
 def start():
     t1_start = perf_counter()
-    LOGGER.warning("Starting indexing process...")
+    LOGGER.error("Starting indexing process...")
     try:
         data = read_path_config()
         conn = create_connection()
@@ -101,7 +91,7 @@ def start():
     except Exception as error:
         LOGGER.warning(error)
     t2_stop = perf_counter()
-    LOGGER.warning("Time elapsed {} seconds".format(t2_stop - t1_start))
+    LOGGER.error("Time elapsed {} seconds".format(t2_stop - t1_start))
 
 
 if __name__ == '__main__':

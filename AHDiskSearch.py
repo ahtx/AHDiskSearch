@@ -18,9 +18,10 @@ from ttkbootstrap import Style
 
 from AHFTSearch import FullTextSearch
 
-# sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from dist import AHDiskIndexer, audio_to_text, AHFullTextIndexer, AHObjectDetector
-from dist.shared import LOGGER, create_connection, get_sub_string, DATE_TIME_FORMAT, BASE_DIR
+from dist.shared import LOGGER, create_connection, get_sub_string, DATE_TIME_FORMAT, DIST_DIR, read_path_config, \
+    kb_to_mbs
 
 
 class ProcessAsync(multiprocessing.Process):
@@ -33,19 +34,17 @@ class ProcessAsync(multiprocessing.Process):
 
 
 class App(tk.Tk, FullTextSearch):
-    hotkey = "ctrl+shift+f"
     list_box_cols = ('Filename', 'Size', 'Created', 'Modified')
     indexers = (AHDiskIndexer.start, AHFullTextIndexer.start, AHObjectDetector.start, audio_to_text.start)
     indexer_process: ProcessAsync
 
     def __init__(self):
-        keyboard.add_hotkey(self.hotkey, self.find_window_movetop, args=())
         super(App, self).__init__()
         self.conn = create_connection()
-        self.config_file = os.path.join(BASE_DIR, 'dist', 'ahsearch.config')
+        self.config_file = os.path.join(DIST_DIR, 'ahsearch.config')
         self.title('Full Disk Search')
         self.geometry('1065x555+30+30')
-        self.iconbitmap(os.path.join(BASE_DIR, 'dist', 'ahsearch.ico'))
+        self.iconbitmap(os.path.join(DIST_DIR, 'ahsearch.ico'))
         style = Style(theme="cosmo")
         style.configure('TEntry', font=('Helvetica', 12))
         style.configure("TProgressbar", thickness=5)
@@ -62,6 +61,7 @@ class App(tk.Tk, FullTextSearch):
         self.config(menu=menubar)
         menubar.add_command(label='Home', command=self.home_page)
         menubar.add_command(label='Indexer Config', command=self.config_page)
+        menubar.add_command(label='Settings', command=self.settings_page)
         # Progress frame
         self.progress_frame = ttk.Frame(self)
 
@@ -81,13 +81,18 @@ class App(tk.Tk, FullTextSearch):
         self.empty_frame.grid(row=2, column=0, sticky=tk.NSEW, padx=10, pady=(0, 2))
         self.active_frames = None
         self.show_preview = True
+        self.hot_key = tk.StringVar()
         self.indexer_type = tk.IntVar()
+        self.file_size = tk.IntVar()
+        data = self.read_data()
+        self.hot_key.set(data.get('hot_key', 'ctrl+shift+f'))
+        keyboard.add_hotkey(self.hot_key.get(), self.find_window_movetop, args=())
         self.indexer_type.set(1)
+        self.file_size.set(data.get('file_size', 5))
         self.home_page()
 
     def find_window_movetop(self):
         self.wm_deiconify()
-
 
     def start_progress(self):
         self.progress_frame.tkraise()
@@ -131,11 +136,11 @@ class App(tk.Tk, FullTextSearch):
             widget.insert("end", line)
 
     def read_data(self):
-        with open(self.config_file) as open_file:
-            try:
+        try:
+            with open(self.config_file) as open_file:
                 data = json.load(open_file)
-            except json.decoder.JSONDecodeError:
-                data = {}
+        except (FileNotFoundError, json.decoder.JSONDecodeError):
+            data = {}
         return data
 
     def write_config(self, data):
@@ -181,7 +186,7 @@ class App(tk.Tk, FullTextSearch):
             file_stats = os.stat(file)
             message = f"File: {file}\n"
             message += "##############################\n"
-            message += f"Size: {file_stats.st_size}\n"
+            message += f"Size (MB): {kb_to_mbs(file_stats.st_size)}\n"
             message += f"Creation: {self.epoch_to_date(file_stats.st_ctime)}\n"
             message += f"Modification: {self.epoch_to_date(file_stats.st_mtime)}"
             self.dock_viewer.display_text(message)
@@ -261,7 +266,8 @@ class App(tk.Tk, FullTextSearch):
             self.message(message=error.args[0])
 
     def folder_select(self, folder_list):
-        answer = filedialog.askdirectory(parent=self, initialdir=os.environ['HOMEPATH'], title="Please select a folder:")
+        answer = filedialog.askdirectory(parent=self, initialdir=os.environ['HOMEPATH'],
+                                         title="Please select a folder:")
         folder_list.insert("end", str(Path(answer).absolute()))
 
     def destroy_active_frames(self):
@@ -426,6 +432,37 @@ class App(tk.Tk, FullTextSearch):
         self.bind('<Return>', lambda event, widget=list_box: self.fill_treeview(widget=widget))
         toggle_preview.config(command=lambda widget=list_box: self.show_hide_preview(widget=widget))
         self.active_frames = (query_frame, radio_frame, preview_list_frame)
+
+    def update_settings(self):
+        data = read_path_config()
+        data['hot_key'] = self.hot_key.get()
+        data['file_size'] = self.file_size.get()
+        keyboard.unhook_all_hotkeys()
+        keyboard.add_hotkey(data['hot_key'], self.find_window_movetop, args=())
+        self.write_config(json.dumps(data, indent=4))
+
+    def settings_page(self):
+        self.destroy_active_frames()
+        self.title('Settings')
+        settings_frame = ttk.Frame(self)
+        settings_frame.columnconfigure(0, weight=1)
+        settings_frame.columnconfigure(1, weight=16)
+        settings_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=10, pady=30)
+        ttk.Label(settings_frame, text='Hot Key: ').grid(row=0, column=0, sticky=tk.W)
+        hot_key_entry = ttk.Entry(settings_frame, textvariable=self.hot_key, width=131)
+        hot_key_entry.grid(row=0, column=1, sticky=tk.EW, pady=(0, 5))
+        ttk.Label(settings_frame, text='Max. file size(MB):').grid(row=1, column=0, sticky=tk.W)
+        file_size_entry = ttk.Entry(settings_frame, textvariable=self.file_size)
+        file_size_entry.grid(row=1, column=1, sticky=tk.EW)
+
+        action_frame = ttk.Frame(self)
+        action_frame.columnconfigure(0, weight=16)
+        action_frame.grid(row=4, column=0, sticky=tk.NSEW, padx=10, pady=(0, 10))
+        entry_update_button = ttk.Button(action_frame, text='Save', style='success.TButton')
+        entry_update_button.config(command=self.update_settings)
+        entry_update_button.grid(row=0, column=0, sticky=tk.EW)
+
+        self.active_frames = [settings_frame, action_frame]
 
 
 if __name__ == '__main__':
