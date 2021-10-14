@@ -65,7 +65,7 @@ def start():
             file_stats = os.stat(filename)
             file_size = kb_to_mbs(file_stats.st_size)
             LOGGER.warning(f"Indexing [{file_size}] {filename}: {index + 1} out of {total}")
-            if file_size > float(read_path_config().get('file_size', 5)): continue
+            if file_size > float(read_path_config().get('file_size', '5')): continue
             extension = filename.split('.')[-1]
             if os.path.isfile(filename) and extension in ("txt", "pdf", "docx"):
                 try:
