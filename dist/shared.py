@@ -7,7 +7,7 @@ from functools import reduce
 
 LOGGER = logging.getLogger(__name__)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATE_TIME_FORMAT = "%m/%d/%Y, %H:%M:%S"
+DATE_TIME_FORMAT = "%m/%d/%Y, %H:%M"
 Stats = namedtuple('Stats', ['count', 'size', 'datetime'])
 c_handler = logging.StreamHandler()
 DIST_DIR = os.path.join(BASE_DIR, 'ttkbootstrap')
@@ -42,6 +42,20 @@ def read_path_config():
         except json.decoder.JSONDecodeError:
             data = {}
     return data
+
+
+def convert_bytes(size):
+    kb = 1024
+    mbs = 1024 * 1024
+    gbs = 1024 * 1024 * 1024
+    if size < kb:
+        return f"{size} Bytes"
+    elif kb < size < mbs:
+        return f"{round(size/kb, 2)} KB"
+    elif mbs < size < gbs:
+        return f"{round(size/mbs, 2)} MB"
+    else:
+        return f"{round(size/gbs, 2)} GB"
 
 
 def kb_to_mbs(number):
