@@ -37,6 +37,7 @@ class App(tk.Tk, FullTextSearch):
     list_box_cols = ('Filename', 'Module', 'Size', 'Created', 'Modified')
     indexers = (AHDiskIndexer.start, AHFullTextIndexer.start, AHObjectDetector.start, audio_to_text.start)
     indexer_process: ProcessAsync
+    query_entry = ""
 
     def __init__(self):
         super(App, self).__init__()
@@ -95,6 +96,22 @@ class App(tk.Tk, FullTextSearch):
 
     def find_window_movetop(self):
         self.wm_deiconify()
+        self.attributes("-topmost", True)
+        self.focus_set()
+        self.focus_force()
+        self.grab_set()
+        self.query_entry.focus_set()
+        
+        # There is a problem here. When window comes to the foreground
+        # the query entry field doesn't have focus. So typing won't work
+        # until you click on the field first. Need to resolve.
+        
+        #self.query_entry.focus_force()
+        #self.query_entry.grab_set()
+        #self.query_entry.grab_set_global()
+        
+        self.query_entry.focus()
+        
 
     def start_progress(self):
         self.progress_frame.tkraise()
@@ -385,7 +402,9 @@ class App(tk.Tk, FullTextSearch):
 
         label = ttk.Label(query_frame, text='Search: ')
         label.grid(column=0, row=0, sticky=tk.W)
+        
         query_entry = ttk.Entry(query_frame, textvariable=self.query_var, width=114, style='TEntry')
+        self.query_entry = query_entry
         query_entry.focus()
         query_entry.grid(column=1, row=0, sticky=tk.EW)
         search_button = ttk.Button(query_frame, text='Search', width=20)
