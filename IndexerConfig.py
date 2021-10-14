@@ -28,7 +28,7 @@ class IndexerConfig:
         self.root = root
         self.config_file = os.path.join(BASE_DIR, 'dist', 'ahsearch.config')
 
-        self.indexer = Indexer(*['File Indexer', 'Full Text', 'Image Recognition', 'Audio Indexer'])
+        self.indexer = Indexer(*['File Info', 'Full Text', 'Image Labels', 'Audio to Text'])
 
         self.indexer_obj = tk.StringVar()
         self.indexer_obj.set(self.indexer.disk)
@@ -52,13 +52,13 @@ class IndexerConfig:
         indexer_label = ttk.Label(indexer_frame, width=15, text="Select Indexer: ", font=("Arial", 10, "bold"))
         indexer_label.grid(row=1, column=0, sticky=tk.EW, pady=10)
         params = dict(style='BW.TRadiobutton', variable=self.indexer_obj, )
-        disk_indexer = ttk.Radiobutton(indexer_frame, text="File Indexer", width=5, value=self.indexer.disk, **params)
+        disk_indexer = ttk.Radiobutton(indexer_frame, text="File Info", width=5, value=self.indexer.disk, **params)
         disk_indexer.grid(row=1, column=1, sticky=tk.EW)
         fdisk_indexer = ttk.Radiobutton(indexer_frame, text="Full Text", width=5, value=self.indexer.fulltext, **params)
         fdisk_indexer.grid(row=1, column=2, sticky=tk.EW)
-        object_indexer = ttk.Radiobutton(indexer_frame, text="Image Recognition", width=10, value=self.indexer.image, **params)
+        object_indexer = ttk.Radiobutton(indexer_frame, text="Image Labels", width=10, value=self.indexer.image, **params)
         object_indexer.grid(row=1, column=3, sticky=tk.EW)
-        audio_indexer = ttk.Radiobutton(indexer_frame, text="Audio Indexer", width=10, value=self.indexer.audio, **params)
+        audio_indexer = ttk.Radiobutton(indexer_frame, text="Audio to Text", width=10, value=self.indexer.audio, **params)
         audio_indexer.grid(row=1, column=4, sticky=tk.EW)
 
         lf = ttk.Frame(root)
@@ -67,13 +67,13 @@ class IndexerConfig:
         self.folder_list = tk.Listbox(lf, height=10, width=68)
         self.folder_list.grid(row=0, column=0, columnspan=3, sticky=tk.EW, pady=10)
 
-        del_button = ttk.Button(lf, text='Delete', style='primary.TButton', command=self.remove_item)
+        del_button = ttk.Button(lf, text='Delete', style='secondary.TButton', command=self.remove_item)
         del_button.grid(row=1, column=0, sticky=tk.W)
 
-        save_button = ttk.Button(lf, text='Save', style='primary.TButton', command=self.save_config)
+        save_button = ttk.Button(lf, text='Save', style='secondary.TButton', command=self.save_config)
         save_button.grid(row=1, column=1, columnspan=1, sticky=tk.EW)
 
-        cancel_button = ttk.Button(lf, text='Cancel', style='primary.TButton', command=self.exit)
+        cancel_button = ttk.Button(lf, text='Cancel', style='secondary.TButton', command=self.exit)
         cancel_button.grid(row=1, column=2, sticky=tk.E)
 
         params = {'text': 'Run Indexer', 'width': 20, 'command': self.run_indexer, 'style': 'warning.TButton'}
@@ -110,10 +110,10 @@ class IndexerConfig:
 
     def run_indexer(self):
         executable = {
-            'File Indexer': ('AHDiskIndexer.exe', 'AHDiskIndexer.py'),
+            'File Info': ('AHDiskIndexer.exe', 'AHDiskIndexer.py'),
             'Full Text': ('AHFullTextIndexer.exe', 'AHFullTextIndexer.py'),
-            'Image Recognition': ('AHObjectDetector.exe', 'AHObjectDetector.py'),
-            'Audio Indexer': ('audioToText.exe', 'audio_to_text.py')
+            'Image Labels': ('AHObjectDetector.exe', 'AHObjectDetector.py'),
+            'Audio to Text': ('audioToText.exe', 'audio_to_text.py')
         }
         target = os.path.join(BASE_DIR, 'dist', executable[self.indexer_obj.get()][0])
         if os.path.exists(target):

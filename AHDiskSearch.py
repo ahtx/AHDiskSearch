@@ -34,7 +34,7 @@ class ProcessAsync(multiprocessing.Process):
 
 
 class App(tk.Tk, FullTextSearch):
-    list_box_cols = ('Filename', 'Type', 'Size', 'Created', 'Modified')
+    list_box_cols = ('Filename', 'Module', 'Size', 'Created', 'Modified')
     indexers = (AHDiskIndexer.start, AHFullTextIndexer.start, AHObjectDetector.start, audio_to_text.start)
     indexer_process: ProcessAsync
 
@@ -198,14 +198,14 @@ class App(tk.Tk, FullTextSearch):
         if self.show_preview.get() == 'show':
             self.dock_viewer.grid(row=0, column=2, sticky=tk.NSEW)
             widget.column('Filename', width=368)
-            widget.column('Type', width=50)
+            widget.column('Module', width=50)
             widget.column('Size', width=90)
             widget.column('Created', width=115)
             widget.column('Modified', width=115)
         else:
             self.dock_viewer.grid_forget()
             widget.column('Filename', width=650)
-            widget.column('Type', width=50)
+            widget.column('Module', width=50)
             widget.column('Size', width=90)
             widget.column('Created', width=115)
             widget.column('Modified', width=115)
@@ -258,10 +258,10 @@ class App(tk.Tk, FullTextSearch):
     def fill_treeview(self, widget):
         query = self.query_var.get()
         try:
-            assert query, "Please enter a query!"
+            assert query, "Please enter a query string."
             query = self.get_query(query)
             widget.delete(*widget.get_children())
-            assert not query.lower().endswith('where '), "Data not found!"
+            assert not query.lower().endswith('where '), "No files were found."
             files = self.conn.cursor().execute(query).fetchall()
             assert len(files) > 0, f"'{self.query_var.get()}' related data not found."
             for index, row in enumerate(files):
@@ -306,28 +306,28 @@ class App(tk.Tk, FullTextSearch):
         config_file_frame.grid(row=0, pady=(10, 10), **frame_params)
 
         grid_params = dict(row=0, sticky=tk.W)
-        select_button = ttk.Button(config_file_frame, text='Select To Include', width=71)
+        select_button = ttk.Button(config_file_frame, text='Include', width=71)
         select_button.grid(column=0, padx=(0, 5), **grid_params)
-        exclude_button = ttk.Button(config_file_frame, text="Select To Exclude", width=71, style='secondary.TButton')
+        exclude_button = ttk.Button(config_file_frame, text="Exclude", width=71, style='secondary.TButton')
         exclude_button.grid(column=2, **grid_params)
 
-        config_radio_frame = ttk.LabelFrame(self, text='Config Parameters')
+        config_radio_frame = ttk.LabelFrame(self, text='Configuration Parameters')
         config_radio_frame.grid(row=1, pady=(0, 0), ipady=5, **frame_params)
 
         grid_params = dict(row=2, sticky=tk.E)
         ttk.Label(config_radio_frame, text='Select Indexer: ').grid(column=0, **grid_params)
         radio_params = dict(variable=self.indexer_type, width=12)
-        filename_indexer = ttk.Radiobutton(config_radio_frame, text='File Indexer', value=1, **radio_params)
+        filename_indexer = ttk.Radiobutton(config_radio_frame, text='File Info', value=1, **radio_params)
         filename_indexer.grid(column=1, **grid_params)
         fulltext_indexer = ttk.Radiobutton(config_radio_frame, text='Full Text', value=2, **radio_params)
         fulltext_indexer.grid(column=2, **grid_params)
         radio_params['width'] = 17
-        image_objects_indexer = ttk.Radiobutton(config_radio_frame, text='Image Recognition', value=3, **radio_params)
+        image_objects_indexer = ttk.Radiobutton(config_radio_frame, text='Image Labels', value=3, **radio_params)
         image_objects_indexer.grid(column=3, **grid_params)
         radio_params['width'] = 12
-        audio_search_indexer = ttk.Radiobutton(config_radio_frame, text='Audio To Text', value=4, **radio_params)
+        audio_search_indexer = ttk.Radiobutton(config_radio_frame, text='Audio as Text', value=4, **radio_params)
         audio_search_indexer.grid(column=4, **grid_params)
-        all_indexer = ttk.Radiobutton(config_radio_frame, text='All Indexer', value=5, **radio_params)
+        all_indexer = ttk.Radiobutton(config_radio_frame, text='All Indexers', value=5, **radio_params)
         all_indexer.grid(column=5, **grid_params)
 
         list_frame = ttk.Frame(self)
@@ -402,9 +402,9 @@ class App(tk.Tk, FullTextSearch):
         fulltext = ttk.Radiobutton(radio_frame, text='Full Text', value=2, **radio_params)
         fulltext.grid(column=2, **grid_params)
         radio_params['width'] = 13
-        image_objects = ttk.Radiobutton(radio_frame, text='Image Objects', value=3, **radio_params)
+        image_objects = ttk.Radiobutton(radio_frame, text='Image Labels', value=3, **radio_params)
         image_objects.grid(column=3, **grid_params)
-        audio_search = ttk.Radiobutton(radio_frame, text='Audio Search', value=4, **radio_params)
+        audio_search = ttk.Radiobutton(radio_frame, text='Audio as Text', value=4, **radio_params)
         audio_search.grid(column=4, **grid_params)
 
         all_search = ttk.Radiobutton(radio_frame, text='All', value=5, **radio_params)
@@ -438,7 +438,7 @@ class App(tk.Tk, FullTextSearch):
             list_box.heading(column, text=column, command=lambda _col=column: tree_view_sort_column(_col, False))
 
         list_box.column('Filename', width=370)
-        list_box.column('Type', width=50)
+        list_box.column('Module', width=50)
         list_box.column('Size', width=90)
         list_box.column('Created', width=115)
         list_box.column('Modified', width=115)
