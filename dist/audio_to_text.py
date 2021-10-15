@@ -1,4 +1,3 @@
-import glob
 import itertools
 import os
 import sys
@@ -9,7 +8,6 @@ from time import perf_counter
 import win32api
 import win32event
 import winerror
-from moviepy.video.io.VideoFileClip import VideoFileClip
 from pydub import AudioSegment
 import speech_recognition as sr
 from pydub.silence import split_on_silence
