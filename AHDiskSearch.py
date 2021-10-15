@@ -238,12 +238,12 @@ class App(tk.Tk, FullTextSearch):
     def get_query(self, search):
         search_type = int(self.search_type.get())
         if search_type == 1:
-            query = "SELECT *, 'files' as 'type' FROM files WHERE "
-            query += get_sub_string(search.split(" "), " AND filename LIKE ", "filename LIKE ", True)
+            substr = get_sub_string(search.split(" "), " AND filename LIKE ", "filename LIKE ", True)
+            query = f"SELECT *, 'files' as 'type' FROM files WHERE {substr}"
         elif search_type == 2:
             text_files = list(self.run_query(search))[:100]
-            query = "SELECT *, 'text' as 'type' FROM files WHERE "
-            query += get_sub_string(text_files, " OR filename = ")
+            substr = get_sub_string(text_files, " OR filename = ")
+            query = f"SELECT *, 'text' as 'type' FROM files WHERE {substr}"
         elif search_type == 3:
             query = "SELECT files.filename, size, creation, modification, 'files' as 'type' FROM files "
             query += "INNER JOIN image_objects on files.filename=image_objects.filename "
@@ -264,7 +264,7 @@ class App(tk.Tk, FullTextSearch):
             if sub_query:
                 query += f"SELECT 'text' as type, filename, size FROM files WHERE {sub_query} "
                 query += "UNION ALL "
-            query += f"SELECT 'filename' as type, filename, size FROM files WHERE filename LIKE '%{search}%' "
+            query += f"SELECT 'files' as type, filename, size FROM files WHERE filename LIKE '%{search}%' "
             query += "UNION ALL "
             query += f"SELECT 'images' as type, filename, objects FROM image_objects WHERE objects LIKE '%{search}%' "
             query += "UNION ALL "
@@ -291,12 +291,17 @@ class App(tk.Tk, FullTextSearch):
         except Exception as err:
             LOGGER.error(err)
 
-    def open_target(self, event='file', widget=None):
+    def open_target(self, event='file', widget=None, copy=False):
         try:
             cur_item = widget.focus()
             cur_text = widget.item(cur_item)['values'][0]
             target = cur_text if event == 'file' else str(Path(cur_text).parent)
-            os.startfile(target)
+            if copy:
+                self.clipboard_clear()
+                self.clipboard_append(target)
+                self.update()
+            else:
+                os.startfile(target)
         except Exception as error:
             self.message(message=error.args[0])
 
@@ -389,6 +394,12 @@ class App(tk.Tk, FullTextSearch):
         self.read_config(list_box, list_box_excluded)
         self.active_frames = (config_file_frame, config_radio_frame, list_frame, action_frame)
 
+    def do_popup(self, event, popup):
+        try:
+            popup.tk_popup(event.x_root, event.y_root)
+        finally:
+            popup.grab_release()
+
     def home_page(self):
         self.destroy_active_frames()
         self.title('AH Disk Search')
@@ -463,8 +474,18 @@ class App(tk.Tk, FullTextSearch):
         list_box.column('Modified', width=115)
         list_box.bind("<<TreeviewSelect>>", lambda event, widget=list_box: self.file_preview(widget=widget))
         search_button.config(command=lambda widget=list_box: self.fill_treeview(widget=widget))
-
+        popup = tk.Menu(self, tearoff=0)
+        command = dict(command=lambda _event='file', widget=list_box: self.open_target(_event, widget, True))
+        popup.add_command(label="Copy full path", **command)
+        command = dict(command=lambda _event='folder', widget=list_box: self.open_target(_event, widget, True))
+        popup.add_command(label="Copy folder location", **command)
+        popup.add_separator()
+        command = dict(command=lambda _event='file', widget=list_box: self.open_target(_event, widget))
+        popup.add_command(label="Open file", **command)
+        command = dict(command=lambda _event='folder', widget=list_box: self.open_target(_event, widget))
+        popup.add_command(label="Open folder", **command)
         list_box.bind("<Double-1>", lambda event, _event='file', widget=list_box: self.open_target(_event, widget))
+        list_box.bind("<Button-3>", lambda event, _popup=popup: self.do_popup(event, _popup))
         self.bind('<Return>', lambda event, widget=list_box: self.fill_treeview(widget=widget))
         self.show_hide_preview(widget=list_box)
         self.active_frames = (query_frame, radio_frame, preview_list_frame)
