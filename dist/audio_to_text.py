@@ -1,4 +1,3 @@
-import glob
 import itertools
 import os
 import sys
@@ -9,7 +8,6 @@ from time import perf_counter
 import win32api
 import win32event
 import winerror
-from moviepy.video.io.VideoFileClip import VideoFileClip
 from pydub import AudioSegment
 import speech_recognition as sr
 from pydub.silence import split_on_silence
@@ -51,11 +49,12 @@ def video_to_audio(filename, VIDEO_CODECS):
         return filename
     temp_file = os.path.join(os.environ.get('TEMP'), 'video_audio.wav')
     try:
-        clip = VideoFileClip(filename).subclip(0, 20)
-        clip.audio.write_audiofile(temp_file)
+        ffmpeg = os.path.join(DIST_DIR, 'ffmpeg.exe')
+        cmd = f'{ffmpeg} -y -i "{filename}" "{temp_file}" -f wav -hide_banner -loglevel error'
+        os.system(cmd)
         return temp_file
     except Exception as error:
-        LOGGER.warning(error)
+        LOGGER.warning(f"Conversion: {error}")
     return temp_file
 
 
@@ -64,12 +63,12 @@ def get_text(filename, r):
     try:
         with sr.AudioFile(filename) as source:
             # listen for the data (load audio to memory)
-            audio_data = r.record(source)
+            audio_data = r.record(source, duration=60)
             # recognize (convert from speech to text)
             text = r.recognize_google(audio_data)
             return text
     except Exception as error:
-        LOGGER.warning(error)
+        LOGGER.warning(f"GET TEXT: {error}")
         return ""
 
 
@@ -77,10 +76,11 @@ def get_large_audio_transcription(filename, r):
     file_size = get_size_mb(filename)
     LOGGER.warning(f"File {filename}: size => {file_size}")
     whole_text = ""
+    whole_text += get_text(filename, r)
     if file_size < 3:
-        whole_text += f"{get_text(filename, r)} "
+        whole_text += get_text(filename, r)
     else:
-        long_audio = AudioSegment.from_file(glob.escape(filename))
+        long_audio = AudioSegment.from_file(filename)
         audio_chunks = split_on_silence(
             long_audio, min_silence_len=500,
             silence_thresh=long_audio.dBFS - 14,
@@ -92,10 +92,9 @@ def get_large_audio_transcription(filename, r):
             audio_chunk.export(filename, format="wav")
             file_size = get_size_mb(filename)
             LOGGER.warning(f"{filename}: SIZE =>> {file_size}")
-            if file_size < 3:
-                text = get_text(filename, r)
-                whole_text += f" {text}" if whole_text else text
-            continue
+            if file_size > 3: continue
+            text = get_text(filename, r)
+            whole_text += f" {text}" if whole_text else text
     return whole_text
 
 
@@ -120,7 +119,7 @@ def start():
                 if entry_exists(conn, filename):
                     continue
                 audio_file = video_to_audio(filename, VIDEO_CODECS)
-                words = get_large_audio_transcription(audio_file, recognizer).strip()
+                words = get_text(audio_file, recognizer).strip()
                 LOGGER.warning(f'WORDS: {words}')
                 if not words:
                     continue
