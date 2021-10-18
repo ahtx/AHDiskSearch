@@ -1,7 +1,7 @@
 import itertools
 import sys
 import os
-from sqlite3 import OperationalError, IntegrityError
+from sqlite3 import IntegrityError
 from time import perf_counter
 
 import win32api
@@ -10,16 +10,6 @@ import winerror
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from dist.shared import create_connection, DIST_DIR, LOGGER
-
-
-def create_table(conn):
-    query = "CREATE TABLE image_objects (filename TEXT PRIMARY KEY, objects TEXT, probabilities TEXT);"
-    try:
-        conn.cursor().execute(query)
-    except OperationalError as err:
-        LOGGER.warning(err)
-    except Exception as err:
-        LOGGER.error(err)
 
 
 def entry_exists(conn, v1):
@@ -39,7 +29,6 @@ def start():
     conn = create_connection()
     try:
         assert conn, 'Database connection error'
-        create_table(conn)
         model_file = os.path.join(DIST_DIR, 'resnet50_coco_best_v2.1.0.h5')
         assert os.path.exists(model_file), 'resnet50_coco_best_v2.1.0.h5 is required'
     except Exception as err:

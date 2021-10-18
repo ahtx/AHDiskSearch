@@ -44,6 +44,22 @@ def read_path_config():
     return data
 
 
+def execute_queries(conn, query):
+    try:
+        conn.cursor().execute(query)
+    except sqlite3.OperationalError as err:
+        LOGGER.warning(err)
+    except Exception as err:
+        LOGGER.error(err)
+
+
+def tables():
+    files = "CREATE TABLE files (filename TEXT PRIMARY KEY, size BIGINT, creation DATETIME, modification DATETIME);"
+    image_objects = "CREATE TABLE image_objects (filename TEXT PRIMARY KEY, objects TEXT, probabilities TEXT);"
+    voices = "CREATE TABLE voices (filename TEXT PRIMARY KEY, words TEXT);"
+    return files, image_objects, voices
+
+
 def convert_bytes(size):
     kb = 1024
     mbs = 1024 * 1024
@@ -51,11 +67,11 @@ def convert_bytes(size):
     if size < kb:
         return f"{size} Bytes"
     elif kb < size < mbs:
-        return f"{round(size/kb, 2)} KB"
+        return f"{round(size / kb, 2)} KB"
     elif mbs < size < gbs:
-        return f"{round(size/mbs, 2)} MB"
+        return f"{round(size / mbs, 2)} MB"
     else:
-        return f"{round(size/gbs, 2)} GB"
+        return f"{round(size / gbs, 2)} GB"
 
 
 def kb_to_mbs(number):
@@ -65,6 +81,9 @@ def kb_to_mbs(number):
 def create_connection():
     try:
         db_file = os.path.join(DIST_DIR, 'filesystem.db')
-        return sqlite3.connect(db_file)
+        conn = sqlite3.connect(db_file)
+        for query in tables():
+            execute_queries(conn, query)
+        return conn
     except Exception as err:
         LOGGER.error(err)

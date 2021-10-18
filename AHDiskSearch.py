@@ -101,15 +101,6 @@ class App(tk.Tk, FullTextSearch):
         self.focus_force()
         self.grab_set()
         self.query_entry.focus_set()
-        
-        # There is a problem here. When window comes to the foreground
-        # the query entry field doesn't have focus. So typing won't work
-        # until you click on the field first. Need to resolve.
-        
-        #self.query_entry.focus_force()
-        #self.query_entry.grab_set()
-        #self.query_entry.grab_set_global()
-        
         self.query_entry.focus()
         
 
