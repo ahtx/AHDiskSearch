@@ -2,7 +2,6 @@ import itertools
 import os
 import sys
 from pathlib import Path
-from sqlite3 import OperationalError
 from time import perf_counter
 
 import win32api
@@ -14,16 +13,6 @@ from pydub.silence import split_on_silence
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from dist.shared import DIST_DIR, LOGGER, create_connection
-
-
-def create_table(conn):
-    query = "CREATE TABLE voices (filename TEXT PRIMARY KEY, words TEXT);"
-    try:
-        conn.cursor().execute(query)
-    except OperationalError as err:
-        LOGGER.warning(err)
-    except Exception as err:
-        LOGGER.error(err)
 
 
 def entry_exists(conn, v1):
@@ -107,7 +96,6 @@ def start():
     recognizer = sr.Recognizer()
     t1_start = perf_counter()
     conn = create_connection()
-    create_table(conn)
     query = "SELECT filename FROM files WHERE filename "
     query += "LIKE '%.mp3' OR filename LIKE '%.wav%' OR filename LIKE '%.mp4%'"
     try:

@@ -37,11 +37,11 @@ def get_pickled_files(pickle_file):
 
 
 def update_big_idx(filename, full_text, big_idx):
-    full_text = full_text.lower()
-    for word in set(full_text.split(" ")):
+    words = set(full_text.lower().split())
+    for word in words:
         if not word: continue
         word = word.strip(".,;:\"'!@#$%^&*()-+=<>?,./[]|")
-        word = word.replace('\n', '')
+        word = word.replace('\n', '').replace('(', '').replace(')', '')
         stats = os.stat(filename)
         stats = Stats(*[full_text.count(word.lower()), stats.st_size, stats.st_mtime])
         big_idx[word][filename] = stats

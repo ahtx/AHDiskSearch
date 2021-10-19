@@ -3,7 +3,7 @@ import os
 import sys
 from pathlib import Path
 from time import perf_counter
-from sqlite3 import Error, IntegrityError
+from sqlite3 import IntegrityError
 
 import win32api
 import win32event
@@ -11,15 +11,6 @@ import winerror
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from dist.shared import create_connection, LOGGER, read_path_config
-
-
-def create_table(conn):
-    query = "CREATE TABLE files (filename TEXT PRIMARY KEY, size BIGINT, creation DATETIME, modification DATETIME);"
-    try:
-        c = conn.cursor()
-        c.execute(query)
-    except Error as e:
-        LOGGER.warning(e)
 
 
 def entry_exists(conn, filename, size):
@@ -83,7 +74,6 @@ def start():
         data = read_path_config()
         conn = create_connection()
         assert conn, 'No index database found'
-        create_table(conn)
         for path in data.get('included', []):
             path = path.strip("\n")
             save_paths(path, data.get('excluded', []), conn)
