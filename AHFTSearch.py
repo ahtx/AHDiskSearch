@@ -1,4 +1,3 @@
-import itertools
 import os
 import pickle
 import sys
@@ -14,9 +13,10 @@ class FullTextSearch:
     def run_query(self, query):
         query = query.lower()
         pickle_file = os.path.join(DIST_DIR, 'fulltext.idx.pkl')
+        files = list()
         with open(pickle_file, 'rb') as p_file:
             result_set = pickle.load(p_file)
-            words = query.split(" ")
-            files = list(map(lambda x: result_set[x].keys(), words))
-            files = set(itertools.chain(*files))
+            for word in query.split():
+                result = result_set[word.strip()]
+                files = list(set(files).intersection(set(result))) if files else result
         return files
