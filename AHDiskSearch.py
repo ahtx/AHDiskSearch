@@ -53,7 +53,7 @@ class App(tk.Tk, FullTextSearch):
         highlight_color = '#96a89b'
         style.map('TButton', bordercolor=[('focus !disabled', highlight_color)])
         style.map('TEntry', bordercolor=[('focus !disabled', highlight_color)])
-        style.map('TRadiobutton', foreground=[('focus', highlight_color)])
+        style.map('TRadiobutton', foreground=[('focus', highlight_color), ('selected', highlight_color)])
         style.map('Treeview', bordercolor=[('focus', highlight_color)])
         self.resizable(0, 0)
         self.query_var = tk.StringVar()
@@ -93,6 +93,7 @@ class App(tk.Tk, FullTextSearch):
         keyboard.add_hotkey(self.hot_key.get(), self.find_window_movetop, args=())
         self.file_size.set(data.get('file_size', '5'))
         self.home_page()
+        print(sys.stdout.readlines())
 
     def find_window_movetop(self):
         self.wm_deiconify()
@@ -189,8 +190,10 @@ class App(tk.Tk, FullTextSearch):
         cur_item = widget.focus()
         file = widget.item(cur_item)['values'][0]
         base, ext = map(str.lower, os.path.splitext(file))
-        if ext in ('.pdf', '.docx',):
-            self.dock_viewer.display_text(TextSpitter(file)[0:500] + '...')
+        if ext in ('.pdf', '.docx', '.txt'):
+            text = TextSpitter(filename=file)
+            text = text.decode('utf-8') if isinstance(text, bytes) else text
+            self.dock_viewer.display_text(text[0:500] + '...')
         elif self.dock_viewer.can_display(file):
             self.dock_viewer.display_file(file, pages=1)
         else:
