@@ -93,7 +93,6 @@ class App(tk.Tk, FullTextSearch):
         keyboard.add_hotkey(self.hot_key.get(), self.find_window_movetop, args=())
         self.file_size.set(data.get('file_size', '5'))
         self.home_page()
-        print(sys.stdout.readlines())
 
     def find_window_movetop(self):
         self.wm_deiconify()
