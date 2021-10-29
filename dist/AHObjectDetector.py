@@ -9,7 +9,7 @@ import win32event
 import winerror
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from dist.shared import create_connection, DIST_DIR, LOGGER
+from dist.shared import create_connection, DIST_DIR, LOGGER, remove_entry
 
 
 def entry_exists(conn, v1):
@@ -46,6 +46,8 @@ def start():
         results = list(itertools.chain.from_iterable(conn.cursor().execute(query).fetchall()))
         total = len(results)
         for index, filename in enumerate(results):
+            if not os.path.exists(filename):
+                remove_entry(filename)
             LOGGER.warning(f"Processing {filename}:  {index + 1} out of {total}")
             if entry_exists(conn, filename):
                 continue

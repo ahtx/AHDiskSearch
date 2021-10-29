@@ -10,7 +10,7 @@ import winerror
 import speech_recognition as sr
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from dist.shared import DIST_DIR, LOGGER, create_connection
+from dist.shared import DIST_DIR, LOGGER, create_connection, remove_entry
 
 
 def entry_exists(conn, v1):
@@ -50,9 +50,9 @@ def get_text(filename, r):
     try:
         with sr.AudioFile(filename) as source:
             # listen for the data (load audio to memory)
-            audio_data = r.record(source, duration=120)
+            audio_data = r.record(source)
             # recognize (convert from speech to text)
-            # text = r.recognize_sphinx(audio_data) # use for offline recognition will require extra dependencies
+            # text = r.recognize_sphinx(audio_data)  # use for offline recognition will require extra dependencies
             text = r.recognize_google(audio_data)
             return text
     except Exception as error:
@@ -75,9 +75,13 @@ def start():
         for i, filename in enumerate(results, start=1):
             LOGGER.warning(f"{filename} indexing {i} out of {total}")
             try:
-                if entry_exists(conn, filename):
+                if not os.path.exists(filename):
+                    remove_entry(filename)
+                    continue
+                elif entry_exists(conn, filename):
                     continue
                 audio_file = video_to_audio(filename, codecs)
+                LOGGER.warning(f'Getting Text: {audio_file}')
                 words = get_text(audio_file, recognizer).strip()
                 LOGGER.warning(f'WORDS: {words}')
                 if not words:

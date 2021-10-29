@@ -11,7 +11,7 @@ import winerror
 from TextSpitter import TextSpitter
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from dist.shared import create_connection, DIST_DIR, LOGGER, Stats, read_path_config, kb_to_mbs
+from dist.shared import create_connection, DIST_DIR, LOGGER, Stats, read_path_config, kb_to_mbs, remove_entry
 
 
 def dump_pickle(data, pickle_file):
@@ -65,6 +65,9 @@ def start():
         filenames = set(itertools.chain.from_iterable(conn.cursor().execute(query, list(exclude)).fetchall()))
         total = len(filenames)
         for index, filename in enumerate(filenames):
+            if not os.path.exists(filename):
+                remove_entry(filename)
+                continue
             file_stats = os.stat(filename)
             file_size = kb_to_mbs(file_stats.st_size)
             LOGGER.warning(f"Indexing [{file_size}] {filename}: {index + 1} out of {total}")
