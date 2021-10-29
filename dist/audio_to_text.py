@@ -50,7 +50,7 @@ def get_text(filename, r):
     try:
         with sr.AudioFile(filename) as source:
             # listen for the data (load audio to memory)
-            audio_data = r.record(source)
+            audio_data = r.record(source, duration=30)
             # recognize (convert from speech to text)
             # text = r.recognize_sphinx(audio_data)  # use for offline recognition will require extra dependencies
             text = r.recognize_google(audio_data)
