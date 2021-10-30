@@ -44,7 +44,7 @@ class App(tk.Tk, FullTextSearch):
         self.conn = create_connection()
         self.config_file = os.path.join(DIST_DIR, 'ahsearch.config')
         self.title('Full Disk Search')
-        self.geometry('1065x555+30+30')
+        self.geometry('1065x560+30+30')
         self.iconbitmap(os.path.join(DIST_DIR, 'ahsearch.ico'))
         style = Style(theme="cosmo")
         style.configure('TEntry', font=('Helvetica', 12))
@@ -53,7 +53,7 @@ class App(tk.Tk, FullTextSearch):
         highlight_color = '#96a89b'
         style.map('TButton', bordercolor=[('focus !disabled', highlight_color)])
         style.map('TEntry', bordercolor=[('focus !disabled', highlight_color)])
-        style.map('TRadiobutton', foreground=[('focus', highlight_color)])
+        style.map('TRadiobutton', foreground=[('focus', highlight_color), ('selected', highlight_color)])
         style.map('Treeview', bordercolor=[('focus', highlight_color)])
         self.resizable(0, 0)
         self.query_var = tk.StringVar()
@@ -102,7 +102,6 @@ class App(tk.Tk, FullTextSearch):
         self.grab_set()
         self.query_entry.focus_set()
         self.query_entry.focus()
-        
 
     def start_progress(self):
         self.progress_frame.tkraise()
@@ -189,8 +188,10 @@ class App(tk.Tk, FullTextSearch):
         cur_item = widget.focus()
         file = widget.item(cur_item)['values'][0]
         base, ext = map(str.lower, os.path.splitext(file))
-        if ext in ('.pdf', '.docx',):
-            self.dock_viewer.display_text(TextSpitter(file)[0:500] + '...')
+        if ext in ('.pdf', '.docx', '.txt'):
+            text = TextSpitter(filename=file)
+            text = text.decode('utf-8') if isinstance(text, bytes) else text
+            self.dock_viewer.display_text(text[0:500] + '...')
         elif self.dock_viewer.can_display(file):
             self.dock_viewer.display_file(file, pages=1)
         else:
@@ -330,17 +331,17 @@ class App(tk.Tk, FullTextSearch):
         grid_params = dict(row=2, sticky=tk.E)
         ttk.Label(config_radio_frame, text='Select Indexer: ').grid(column=0, **grid_params)
         radio_params = dict(variable=self.indexer_type, width=12)
-        filename_indexer = ttk.Radiobutton(config_radio_frame, text='File Info', value=1, **radio_params)
+        filename_indexer = tk.Radiobutton(config_radio_frame, text='File Info', value=1,  **radio_params)
         filename_indexer.grid(column=1, **grid_params)
-        fulltext_indexer = ttk.Radiobutton(config_radio_frame, text='Full Text', value=2, **radio_params)
+        fulltext_indexer = tk.Radiobutton(config_radio_frame, text='Full Text', value=2, **radio_params)
         fulltext_indexer.grid(column=2, **grid_params)
         radio_params['width'] = 17
-        image_objects_indexer = ttk.Radiobutton(config_radio_frame, text='Image Labels', value=3, **radio_params)
+        image_objects_indexer = tk.Radiobutton(config_radio_frame, text='Image Labels', value=3, **radio_params)
         image_objects_indexer.grid(column=3, **grid_params)
         radio_params['width'] = 12
-        audio_search_indexer = ttk.Radiobutton(config_radio_frame, text='Audio as Text', value=4, **radio_params)
+        audio_search_indexer = tk.Radiobutton(config_radio_frame, text='Audio as Text', value=4, **radio_params)
         audio_search_indexer.grid(column=4, **grid_params)
-        all_indexer = ttk.Radiobutton(config_radio_frame, text='All Indexers', value=5, **radio_params)
+        all_indexer = tk.Radiobutton(config_radio_frame, text='All Indexers', value=5, **radio_params)
         all_indexer.grid(column=5, **grid_params)
 
         list_frame = ttk.Frame(self)
@@ -418,17 +419,17 @@ class App(tk.Tk, FullTextSearch):
         grid_params = dict(row=2, sticky=tk.W)
         ttk.Label(radio_frame, text='Search type: ').grid(column=0, **grid_params)
         radio_params = dict(variable=self.search_type, width=10)
-        filename = ttk.Radiobutton(radio_frame, text='Filename', value=1, **radio_params)
+        filename = tk.Radiobutton(radio_frame, text='Filename', value=1, **radio_params)
         filename.grid(column=1, **grid_params)
-        fulltext = ttk.Radiobutton(radio_frame, text='Full Text', value=2, **radio_params)
+        fulltext = tk.Radiobutton(radio_frame, text='Full Text', value=2, **radio_params)
         fulltext.grid(column=2, **grid_params)
         radio_params['width'] = 13
-        image_objects = ttk.Radiobutton(radio_frame, text='Image Labels', value=3, **radio_params)
+        image_objects = tk.Radiobutton(radio_frame, text='Image Labels', value=3, **radio_params)
         image_objects.grid(column=3, **grid_params)
-        audio_search = ttk.Radiobutton(radio_frame, text='Audio as Text', value=4, **radio_params)
+        audio_search = tk.Radiobutton(radio_frame, text='Audio as Text', value=4, **radio_params)
         audio_search.grid(column=4, **grid_params)
 
-        all_search = ttk.Radiobutton(radio_frame, text='All', value=5, **radio_params)
+        all_search = tk.Radiobutton(radio_frame, text='All', value=5, **radio_params)
         all_search.grid(column=5, **grid_params)
 
         preview_list_frame = ttk.Frame(self)

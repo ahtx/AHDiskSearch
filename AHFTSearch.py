@@ -17,6 +17,6 @@ class FullTextSearch:
         with open(pickle_file, 'rb') as p_file:
             result_set = pickle.load(p_file)
             for word in query.split():
-                result = result_set[word.strip()]
+                result = result_set[word.lower().strip()]
                 files = list(set(files).intersection(set(result))) if files else result
         return files

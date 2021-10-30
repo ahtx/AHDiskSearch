@@ -4,13 +4,14 @@ import pickle
 import sys
 from collections import defaultdict
 from time import perf_counter
+
 import win32api
 import win32event
 import winerror
 from TextSpitter import TextSpitter
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from dist.shared import create_connection, DIST_DIR, LOGGER, Stats, read_path_config, kb_to_mbs
+from dist.shared import create_connection, DIST_DIR, LOGGER, Stats, read_path_config, kb_to_mbs, remove_entry
 
 
 def dump_pickle(data, pickle_file):
@@ -42,8 +43,9 @@ def update_big_idx(filename, full_text, big_idx):
         if not word: continue
         word = word.strip(".,;:\"'!@#$%^&*()-+=<>?,./[]|")
         word = word.replace('\n', '').replace('(', '').replace(')', '')
+        word.lower()
         stats = os.stat(filename)
-        stats = Stats(*[full_text.count(word.lower()), stats.st_size, stats.st_mtime])
+        stats = Stats(*[full_text.count(word), stats.st_size, stats.st_mtime])
         big_idx[word][filename] = stats
     return big_idx
 
@@ -53,8 +55,9 @@ def start():
     pickle_file = os.path.join(DIST_DIR, 'fulltext.idx.pkl')
     t1_start = perf_counter()
     exclude = get_pickled_files(pickle_file)
-    query = "SELECT filename FROM files WHERE (filename LIKE '%.txt' OR filename LIKE '%.docx' "
-    query += "OR filename LIKE '%.pdf%') AND filename NOT IN ({})".format(','.join('?' * len(exclude)))
+    cond = "(filename LIKE '%.txt' OR filename LIKE '%.docx' OR filename LIKE '%.pdf%')"
+    query = f"SELECT filename FROM files WHERE  {cond}"
+    query += " AND filename NOT IN ({})".format(','.join('?' * len(exclude)))
     big_idx = get_existing_or_default(pickle_file)
     try:
         conn = create_connection()
@@ -62,14 +65,18 @@ def start():
         filenames = set(itertools.chain.from_iterable(conn.cursor().execute(query, list(exclude)).fetchall()))
         total = len(filenames)
         for index, filename in enumerate(filenames):
+            if not os.path.exists(filename):
+                remove_entry(filename)
+                continue
             file_stats = os.stat(filename)
             file_size = kb_to_mbs(file_stats.st_size)
             LOGGER.warning(f"Indexing [{file_size}] {filename}: {index + 1} out of {total}")
-            if file_size > float(read_path_config().get('file_size', '5')): continue
+            if file_size > float(read_path_config().get('file_size', 5)): continue
             extension = filename.split('.')[-1]
             if os.path.isfile(filename) and extension in ("txt", "pdf", "docx"):
                 try:
-                    full_text = TextSpitter(filename)
+                    full_text = TextSpitter(filename=filename)
+                    full_text = full_text.decode('utf-8') if isinstance(full_text, bytes) else full_text
                 except Exception as err:
                     LOGGER.warning(err)
                     continue

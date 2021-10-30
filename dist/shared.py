@@ -22,6 +22,7 @@ f_handler.setFormatter(log_format)
 LOGGER.addHandler(c_handler)
 LOGGER.addHandler(f_handler)
 
+TABLES = ('files', 'voices', 'image_objects')
 
 def get_sub_string(data: list, query_append, prefix='filename = ', like_query=False):
     try:
@@ -78,12 +79,22 @@ def kb_to_mbs(number):
     return round(number / (1024 * 1024), 2)
 
 
-def create_connection():
+def create_connection(create_tables=True):
     try:
         db_file = os.path.join(DIST_DIR, 'filesystem.db')
         conn = sqlite3.connect(db_file)
-        for query in tables():
-            execute_queries(conn, query)
+        if create_tables:
+            for query in tables():
+                execute_queries(conn, query)
         return conn
     except Exception as err:
         LOGGER.error(err)
+
+
+def remove_entry(filename):
+    conn = create_connection(create_tables=False)
+    for table in TABLES:
+        sql = f"DELETE FROM {table} WHERE filename=?"
+        conn.cursor().execute(sql, (filename,))
+        conn.commit()
+    conn.close()

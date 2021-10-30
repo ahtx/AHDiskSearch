@@ -7,12 +7,10 @@ from time import perf_counter
 import win32api
 import win32event
 import winerror
-from pydub import AudioSegment
 import speech_recognition as sr
-from pydub.silence import split_on_silence
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from dist.shared import DIST_DIR, LOGGER, create_connection
+from dist.shared import DIST_DIR, LOGGER, create_connection, remove_entry
 
 
 def entry_exists(conn, v1):
@@ -32,9 +30,9 @@ def get_size_mb(filename):
     return round(os.path.getsize(filename) / (1024 * 1024), 3)
 
 
-def video_to_audio(filename, VIDEO_CODECS):
+def video_to_audio(filename, codecs):
     extension = Path(filename).name.split('.')[-1]
-    if extension.lower() not in VIDEO_CODECS:
+    if extension.lower() not in codecs:
         return filename
     temp_file = os.path.join(os.environ.get('TEMP'), 'video_audio.wav')
     try:
@@ -52,8 +50,9 @@ def get_text(filename, r):
     try:
         with sr.AudioFile(filename) as source:
             # listen for the data (load audio to memory)
-            audio_data = r.record(source, duration=60)
+            audio_data = r.record(source, duration=30)
             # recognize (convert from speech to text)
+            # text = r.recognize_sphinx(audio_data)  # use for offline recognition will require extra dependencies
             text = r.recognize_google(audio_data)
             return text
     except Exception as error:
@@ -61,37 +60,9 @@ def get_text(filename, r):
         return ""
 
 
-def get_large_audio_transcription(filename, r):
-    file_size = get_size_mb(filename)
-    LOGGER.warning(f"File {filename}: size => {file_size}")
-    whole_text = ""
-    whole_text += get_text(filename, r)
-    if file_size < 3:
-        whole_text += get_text(filename, r)
-    else:
-        long_audio = AudioSegment.from_file(filename)
-        audio_chunks = split_on_silence(
-            long_audio, min_silence_len=500,
-            silence_thresh=long_audio.dBFS - 14,
-            keep_silence=350
-        )
-
-        for audio_chunk in audio_chunks:
-            filename = os.path.join(os.getenv('TEMP'), 'chunk.wav')
-            audio_chunk.export(filename, format="wav")
-            file_size = get_size_mb(filename)
-            LOGGER.warning(f"{filename}: SIZE =>> {file_size}")
-            if file_size > 3: continue
-            text = get_text(filename, r)
-            whole_text += f" {text}" if whole_text else text
-    return whole_text
-
-
 def start():
     LOGGER.warning('Starting audio to text conversion')
-    VIDEO_CODECS = ('mp4',)
-    AudioSegment.converter = os.path.join(DIST_DIR, 'ffmpeg.exe')
-    AudioSegment.ffprobe = os.path.join(DIST_DIR, 'ffprobe.exe')
+    codecs = ('mp4', 'mp3',)
     # create a speech recognition object
     recognizer = sr.Recognizer()
     t1_start = perf_counter()
@@ -104,9 +75,13 @@ def start():
         for i, filename in enumerate(results, start=1):
             LOGGER.warning(f"{filename} indexing {i} out of {total}")
             try:
-                if entry_exists(conn, filename):
+                if not os.path.exists(filename):
+                    remove_entry(filename)
                     continue
-                audio_file = video_to_audio(filename, VIDEO_CODECS)
+                elif entry_exists(conn, filename):
+                    continue
+                audio_file = video_to_audio(filename, codecs)
+                LOGGER.warning(f'Getting Text: {audio_file}')
                 words = get_text(audio_file, recognizer).strip()
                 LOGGER.warning(f'WORDS: {words}')
                 if not words:
