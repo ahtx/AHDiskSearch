@@ -58,7 +58,8 @@ def start():
                 for eachObject in detections:
                     objects.append(eachObject["name"])
                     probabilities.append(eachObject["percentage_probability"])
-                insert_entry(conn, filename, str(objects), str(probabilities))
+                if objects:
+                    insert_entry(conn, filename, str(objects), str(probabilities))
             except IntegrityError as err:
                 LOGGER.warning(err)
             except Exception as err:

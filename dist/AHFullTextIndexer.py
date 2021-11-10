@@ -78,7 +78,7 @@ def start():
                     full_text = TextSpitter(filename=filename)
                     full_text = full_text.decode('utf-8') if isinstance(full_text, bytes) else full_text
                 except Exception as err:
-                    LOGGER.warning(err)
+                    raise err
                     continue
                 big_idx = update_big_idx(filename, full_text, big_idx)
         dump_pickle(big_idx, pickle_file)
