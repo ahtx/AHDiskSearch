@@ -52,7 +52,11 @@ def start():
             if entry_exists(conn, filename):
                 continue
             try:
-                xyz, detections = detector.detectObjectsFromImage(input_image=filename, output_type="array")
+                xyz, detections = detector.detectObjectsFromImage(
+                    input_image=filename,
+                    output_type="array",
+                    minimum_percentage_probability=30
+                )
                 objects = []
                 probabilities = []
                 for eachObject in detections:
