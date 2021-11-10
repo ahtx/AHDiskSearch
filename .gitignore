@@ -20,3 +20,4 @@ env
 /ttkbootstrap/ahsearch.config
 /app.py
 /AHDiskSearch.exe
+/ttkbootstrap/resnet50_coco_best_v2.0.1.h5
